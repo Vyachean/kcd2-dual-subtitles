@@ -5,22 +5,28 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modinstall"
 )
 
+const CanaryPrefix = "[KCD2DS TEST] "
+
 var ErrInvalidRequest = errors.New("invalid generation request")
 
 // Request describes one end-to-end mod generation operation. An empty
 // OutputPath selects automatic installation; a non-empty OutputPath writes a
-// portable mod ZIP instead.
+// portable mod ZIP instead. CanaryID enables an explicit acceptance-only
+// marker on one existing localization row.
 type Request struct {
 	GameRoot          string
 	MainLanguage      localization.Language
 	SecondaryLanguage localization.Language
 	OutputPath        string
+	Version           string
+	CanaryID          string
 }
 
 // Result describes a successfully generated mod destination.
@@ -28,11 +34,14 @@ type Result struct {
 	OutputPath  string
 	InstallPath string
 	Stats       localization.MergeStats
+	PatchRows   int
+	CanaryID    string
 }
 
 // Generate reads two installed localization PAKs, merges their dialogue rows,
-// then either installs the mod for the current Windows user or writes a
-// standalone archive. It never modifies base-game files.
+// writes only changed rows as a KCD2 localization patch, then either installs
+// the mod for the current Windows user or writes a standalone archive. It never
+// modifies base-game files.
 func Generate(request Request) (Result, error) {
 	mainInfo, secondaryInfo, err := validateRequest(request)
 	if err != nil {
@@ -76,18 +85,64 @@ func Generate(request Request) (Result, error) {
 		return Result{}, fmt.Errorf("merge dialogue rows: %w", err)
 	}
 
-	if request.OutputPath != "" {
-		if err := modarchive.Build(request.OutputPath, request.MainLanguage, mergedRows); err != nil {
-			return Result{}, fmt.Errorf("build mod archive: %w", err)
-		}
-		return Result{OutputPath: request.OutputPath, Stats: stats}, nil
+	patchRows, err := changedRows(mainRows, mergedRows, strings.TrimSpace(request.CanaryID))
+	if err != nil {
+		return Result{}, err
 	}
 
-	installPath, err := modinstall.Install(request.MainLanguage, mergedRows)
+	version := strings.TrimSpace(request.Version)
+	if version == "" {
+		version = "dev"
+	}
+
+	result := Result{
+		Stats:     stats,
+		PatchRows: len(patchRows),
+		CanaryID:  strings.TrimSpace(request.CanaryID),
+	}
+	if request.OutputPath != "" {
+		if err := modarchive.BuildVersioned(request.OutputPath, request.MainLanguage, patchRows, version); err != nil {
+			return Result{}, fmt.Errorf("build mod archive: %w", err)
+		}
+		result.OutputPath = request.OutputPath
+		return result, nil
+	}
+
+	installPath, err := modinstall.InstallVersioned(request.MainLanguage, patchRows, version)
 	if err != nil {
 		return Result{}, fmt.Errorf("install generated mod: %w", err)
 	}
-	return Result{InstallPath: installPath, Stats: stats}, nil
+	result.InstallPath = installPath
+	return result, nil
+}
+
+func changedRows(baseRows, mergedRows []localization.DialogueRow, canaryID string) ([]localization.DialogueRow, error) {
+	if len(baseRows) != len(mergedRows) {
+		return nil, fmt.Errorf("merge invariant violated: base rows=%d merged rows=%d", len(baseRows), len(mergedRows))
+	}
+
+	patchRows := make([]localization.DialogueRow, 0, len(mergedRows))
+	canaryFound := canaryID == ""
+	for i := range mergedRows {
+		base := baseRows[i]
+		merged := mergedRows[i]
+		if base.ID != merged.ID {
+			return nil, fmt.Errorf("merge invariant violated at row %d: base ID %q != merged ID %q", i, base.ID, merged.ID)
+		}
+
+		if canaryID != "" && merged.ID == canaryID {
+			merged.Text = CanaryPrefix + merged.Text
+			canaryFound = true
+		}
+		if merged.Text != base.Text {
+			patchRows = append(patchRows, merged)
+		}
+	}
+
+	if !canaryFound {
+		return nil, fmt.Errorf("%w: canary localization ID %q was not found in the main language table", ErrInvalidRequest, canaryID)
+	}
+	return patchRows, nil
 }
 
 func validateRequest(request Request) (localization.LanguageInfo, localization.LanguageInfo, error) {
