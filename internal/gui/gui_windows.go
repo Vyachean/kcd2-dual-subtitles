@@ -15,15 +15,15 @@ import (
 const (
 	windowClassName = "KCD2DualSubtitlesWindow"
 
-	wsCaption      = 0x00C00000
-	wsSysMenu      = 0x00080000
-	wsMinimizeBox  = 0x00020000
-	wsChild        = 0x40000000
-	wsVisible      = 0x10000000
-	wsTabStop      = 0x00010000
-	wsBorder       = 0x00800000
-	wsVScroll      = 0x00200000
-	esAutoHScroll  = 0x0080
+	wsCaption       = 0x00C00000
+	wsSysMenu       = 0x00080000
+	wsMinimizeBox   = 0x00020000
+	wsChild         = 0x40000000
+	wsVisible       = 0x10000000
+	wsTabStop       = 0x00010000
+	wsBorder        = 0x00800000
+	wsVScroll       = 0x00200000
+	esAutoHScroll   = 0x0080
 	cbsDropdownList = 0x0003
 
 	wmCreate  = 0x0001
@@ -45,7 +45,7 @@ const (
 	mbYesNo        = 0x00000004
 	mbIconError    = 0x00000010
 	mbIconQuestion = 0x00000020
-	idYes           = 6
+	idYes          = 6
 
 	bifReturnOnlyFSDirs = 0x0001
 	bifEditBox          = 0x0010
@@ -85,24 +85,24 @@ var (
 	procGetModuleHandleW = guiKernel32.NewProc("GetModuleHandleW")
 	procGetStockObject   = guiGDI32.NewProc("GetStockObject")
 
-	procSHBrowseForFolderW    = guiShell32.NewProc("SHBrowseForFolderW")
-	procSHGetPathFromIDListW  = guiShell32.NewProc("SHGetPathFromIDListW")
-	procCoInitializeEx        = guiOle32.NewProc("CoInitializeEx")
-	procCoUninitialize        = guiOle32.NewProc("CoUninitialize")
-	procCoTaskMemFree         = guiOle32.NewProc("CoTaskMemFree")
+	procSHBrowseForFolderW   = guiShell32.NewProc("SHBrowseForFolderW")
+	procSHGetPathFromIDListW = guiShell32.NewProc("SHGetPathFromIDListW")
+	procCoInitializeEx       = guiOle32.NewProc("CoInitializeEx")
+	procCoUninitialize       = guiOle32.NewProc("CoUninitialize")
+	procCoTaskMemFree        = guiOle32.NewProc("CoTaskMemFree")
 )
 
 type wndClass struct {
-	Style         uint32
-	WndProc       uintptr
-	ClsExtra      int32
-	WndExtra      int32
-	Instance      uintptr
-	Icon          uintptr
-	Cursor        uintptr
-	Background    uintptr
-	MenuName      *uint16
-	ClassName     *uint16
+	Style      uint32
+	WndProc    uintptr
+	ClsExtra   int32
+	WndExtra   int32
+	Instance   uintptr
+	Icon       uintptr
+	Cursor     uintptr
+	Background uintptr
+	MenuName   *uint16
+	ClassName  *uint16
 }
 
 type point struct {
@@ -136,11 +136,11 @@ type nativeWindow struct {
 	model   Model
 	version string
 
-	hwnd          uintptr
-	gameEdit      uintptr
-	mainCombo     uintptr
-	secondaryCombo uintptr
-	generateButton uintptr
+	hwnd            uintptr
+	gameEdit        uintptr
+	mainCombo       uintptr
+	secondaryCombo  uintptr
+	generateButton  uintptr
 	uninstallButton uintptr
 	statusLabel     uintptr
 	font            uintptr
