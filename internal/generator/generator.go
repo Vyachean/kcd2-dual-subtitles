@@ -8,11 +8,14 @@ import (
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/modinstall"
 )
 
 var ErrInvalidRequest = errors.New("invalid generation request")
 
-// Request describes one end-to-end mod generation operation.
+// Request describes one end-to-end mod generation operation. An empty
+// OutputPath selects automatic installation; a non-empty OutputPath writes a
+// portable mod ZIP instead.
 type Request struct {
 	GameRoot          string
 	MainLanguage      localization.Language
@@ -20,14 +23,16 @@ type Request struct {
 	OutputPath        string
 }
 
-// Result describes a successfully generated mod archive.
+// Result describes a successfully generated mod destination.
 type Result struct {
-	OutputPath string
-	Stats      localization.MergeStats
+	OutputPath  string
+	InstallPath string
+	Stats       localization.MergeStats
 }
 
 // Generate reads two installed localization PAKs, merges their dialogue rows,
-// and writes a standalone mod archive without modifying game files.
+// then either installs the mod for the current Windows user or writes a
+// standalone archive. It never modifies base-game files.
 func Generate(request Request) (Result, error) {
 	mainInfo, secondaryInfo, err := validateRequest(request)
 	if err != nil {
@@ -71,19 +76,23 @@ func Generate(request Request) (Result, error) {
 		return Result{}, fmt.Errorf("merge dialogue rows: %w", err)
 	}
 
-	if err := modarchive.Build(request.OutputPath, request.MainLanguage, mergedRows); err != nil {
-		return Result{}, fmt.Errorf("build mod archive: %w", err)
+	if request.OutputPath != "" {
+		if err := modarchive.Build(request.OutputPath, request.MainLanguage, mergedRows); err != nil {
+			return Result{}, fmt.Errorf("build mod archive: %w", err)
+		}
+		return Result{OutputPath: request.OutputPath, Stats: stats}, nil
 	}
 
-	return Result{OutputPath: request.OutputPath, Stats: stats}, nil
+	installPath, err := modinstall.Install(request.MainLanguage, mergedRows)
+	if err != nil {
+		return Result{}, fmt.Errorf("install generated mod: %w", err)
+	}
+	return Result{InstallPath: installPath, Stats: stats}, nil
 }
 
 func validateRequest(request Request) (localization.LanguageInfo, localization.LanguageInfo, error) {
 	if request.GameRoot == "" {
 		return localization.LanguageInfo{}, localization.LanguageInfo{}, fmt.Errorf("%w: game root is required", ErrInvalidRequest)
-	}
-	if request.OutputPath == "" {
-		return localization.LanguageInfo{}, localization.LanguageInfo{}, fmt.Errorf("%w: output path is required", ErrInvalidRequest)
 	}
 	if request.MainLanguage == request.SecondaryLanguage {
 		return localization.LanguageInfo{}, localization.LanguageInfo{}, fmt.Errorf("%w: main and secondary languages must differ", ErrInvalidRequest)
