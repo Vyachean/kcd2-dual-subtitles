@@ -104,7 +104,7 @@ func TestMarshalDialogueXMLRoundTripAndEscaping(t *testing.T) {
 	if !strings.Contains(encoded, "A &amp; B &lt;source&gt;") {
 		t.Fatalf("MarshalDialogueXML() did not XML-escape source: %s", encoded)
 	}
-	if !strings.Contains(encoded, "Русский &amp; English &lt;sample&gt;\nSecond line.") {
+	if !strings.Contains(encoded, "Русский &amp; English &lt;sample&gt;&#xA;Second line.") {
 		t.Fatalf("MarshalDialogueXML() did not preserve/escape text: %s", encoded)
 	}
 
