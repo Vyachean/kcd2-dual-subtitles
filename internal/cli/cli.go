@@ -178,7 +178,9 @@ func executeGeneration(request generator.Request, stdout, stderr io.Writer, gene
 	} else {
 		fmt.Fprintf(stdout, "Created: %s\n", result.OutputPath)
 	}
-	fmt.Fprintf(stdout, "Subtitle style: %s\n", result.SubtitleStyle)
+	if result.SubtitleStyle == generator.SubtitleStyleDifferentiated {
+		fmt.Fprintln(stdout, "Experimental subtitle style: differentiated")
+	}
 	fmt.Fprintf(stdout, "Patch rows: %d\n", result.PatchRows)
 	fmt.Fprintf(stdout, "Processed: %d\n", result.Stats.Processed)
 	fmt.Fprintf(stdout, "Bilingual: %d\n", result.Stats.Bilingual)
