@@ -23,6 +23,16 @@ type MergeStats struct {
 // MergeDialogueRows combines secondary-language text into main-language rows by ID.
 // Main row order, IDs, and Source values are preserved.
 func MergeDialogueRows(main, secondary []DialogueRow) ([]DialogueRow, MergeStats, error) {
+	return mergeDialogueRows(main, secondary, "", "")
+}
+
+// MergeDialogueRowsTagged combines secondary-language text into main-language rows
+// and prefixes only truly bilingual rows with compact language tags.
+func MergeDialogueRowsTagged(main, secondary []DialogueRow, mainTag, secondaryTag string) ([]DialogueRow, MergeStats, error) {
+	return mergeDialogueRows(main, secondary, mainTag, secondaryTag)
+}
+
+func mergeDialogueRows(main, secondary []DialogueRow, mainTag, secondaryTag string) ([]DialogueRow, MergeStats, error) {
 	mainIDs, err := indexDialogueIDs(main, "main")
 	if err != nil {
 		return nil, MergeStats{}, err
@@ -62,7 +72,13 @@ func MergeDialogueRows(main, secondary []DialogueRow) ([]DialogueRow, MergeStats
 			continue
 		}
 
-		merged[i].Text = mainRow.Text + BilingualSeparator + secondaryRow.Text
+		mainText := mainRow.Text
+		secondaryText := secondaryRow.Text
+		if mainTag != "" && secondaryTag != "" {
+			mainText = "[" + mainTag + "] " + mainText
+			secondaryText = "[" + secondaryTag + "] " + secondaryText
+		}
+		merged[i].Text = mainText + BilingualSeparator + secondaryText
 		stats.Bilingual++
 	}
 
