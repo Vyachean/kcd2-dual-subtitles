@@ -48,9 +48,10 @@ type Result struct {
 	HUDOverride   bool
 }
 
-// Generate reads installed localization PAKs and writes only project-owned mod
-// files. The explicit HUD prototype additionally derives a patched hud.gfx from
-// the user's own IPL_GameData.pak; original game files are never modified.
+// Generate reads installed localization PAKs, merges their dialogue rows and
+// writes only changed rows as a KCD2 localization patch. The explicit HUD
+// prototype additionally derives a HUD override from the user's installed
+// IPL_GameData.pak. Base-game files are never modified.
 func Generate(request Request) (Result, error) {
 	mainInfo, secondaryInfo, err := validateRequest(request)
 	if err != nil {
@@ -97,21 +98,10 @@ func Generate(request Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("merge dialogue rows: %w", err)
 	}
+
 	patchRows, err := changedRows(mainRows, mergedRows, strings.TrimSpace(request.CanaryID))
 	if err != nil {
 		return Result{}, err
-	}
-
-	var derivedHUD []byte
-	if style == SubtitleStyleHUD {
-		retailHUD, err := readRetailHUD(request.GameRoot)
-		if err != nil {
-			return Result{}, fmt.Errorf("read retail HUD for experimental subtitle mode: %w", err)
-		}
-		derivedHUD, err = patchRetailHUD(retailHUD)
-		if err != nil {
-			return Result{}, fmt.Errorf("derive experimental subtitle HUD: %w", err)
-		}
 	}
 
 	version := strings.TrimSpace(request.Version)
@@ -124,10 +114,26 @@ func Generate(request Request) (Result, error) {
 		PatchRows:     len(patchRows),
 		CanaryID:      strings.TrimSpace(request.CanaryID),
 		SubtitleStyle: style,
-		HUDOverride:   len(derivedHUD) != 0,
 	}
+
+	var derivedHUD []byte
+	if style == SubtitleStyleHUD {
+		retailHUD, err := readRetailHUD(request.GameRoot)
+		if err != nil {
+			return Result{}, fmt.Errorf("read retail HUD from %s: %w", gameassets.GameDataPAKRelativePath, err)
+		}
+		derivedHUD, err = patchRetailHUD(retailHUD)
+		if err != nil {
+			return Result{}, fmt.Errorf("derive experimental HUD override: %w", err)
+		}
+		if len(derivedHUD) == 0 {
+			return Result{}, errors.New("derive experimental HUD override: patcher returned an empty HUD")
+		}
+		result.HUDOverride = true
+	}
+
 	if request.OutputPath != "" {
-		if len(derivedHUD) != 0 {
+		if result.HUDOverride {
 			if err := modarchive.BuildVersionedWithHUD(request.OutputPath, request.MainLanguage, patchRows, derivedHUD, version); err != nil {
 				return Result{}, fmt.Errorf("build HUD prototype mod archive: %w", err)
 			}
@@ -139,7 +145,7 @@ func Generate(request Request) (Result, error) {
 	}
 
 	var installPath string
-	if len(derivedHUD) != 0 {
+	if result.HUDOverride {
 		installPath, err = modinstall.InstallVersionedWithHUD(request.MainLanguage, patchRows, derivedHUD, version)
 	} else {
 		installPath, err = modinstall.InstallVersioned(request.MainLanguage, patchRows, version)
