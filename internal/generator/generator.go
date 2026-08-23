@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/gameassets"
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/gfxpatch"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modinstall"
@@ -14,7 +16,11 @@ import (
 
 const CanaryPrefix = "[KCD2DS TEST] "
 
-var ErrInvalidRequest = errors.New("invalid generation request")
+var (
+	ErrInvalidRequest = errors.New("invalid generation request")
+	readRetailHUD     = gameassets.ReadHUD
+	patchRetailHUD    = gfxpatch.PatchHUD
+)
 
 // Request describes one end-to-end mod generation operation. An empty
 // OutputPath selects automatic installation; a non-empty OutputPath writes a
@@ -39,12 +45,12 @@ type Result struct {
 	PatchRows     int
 	CanaryID      string
 	SubtitleStyle SubtitleStyle
+	HUDOverride   bool
 }
 
-// Generate reads two installed localization PAKs, merges their dialogue rows,
-// writes only changed rows as a KCD2 localization patch, then either installs
-// the mod for the current Windows user or writes a standalone archive. It never
-// modifies base-game files.
+// Generate reads installed localization PAKs and writes only project-owned mod
+// files. The explicit HUD prototype additionally derives a patched hud.gfx from
+// the user's own IPL_GameData.pak; original game files are never modified.
 func Generate(request Request) (Result, error) {
 	mainInfo, secondaryInfo, err := validateRequest(request)
 	if err != nil {
@@ -91,10 +97,21 @@ func Generate(request Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("merge dialogue rows: %w", err)
 	}
-
 	patchRows, err := changedRows(mainRows, mergedRows, strings.TrimSpace(request.CanaryID))
 	if err != nil {
 		return Result{}, err
+	}
+
+	var derivedHUD []byte
+	if style == SubtitleStyleHUD {
+		retailHUD, err := readRetailHUD(request.GameRoot)
+		if err != nil {
+			return Result{}, fmt.Errorf("read retail HUD for experimental subtitle mode: %w", err)
+		}
+		derivedHUD, err = patchRetailHUD(retailHUD)
+		if err != nil {
+			return Result{}, fmt.Errorf("derive experimental subtitle HUD: %w", err)
+		}
 	}
 
 	version := strings.TrimSpace(request.Version)
@@ -107,16 +124,26 @@ func Generate(request Request) (Result, error) {
 		PatchRows:     len(patchRows),
 		CanaryID:      strings.TrimSpace(request.CanaryID),
 		SubtitleStyle: style,
+		HUDOverride:   len(derivedHUD) != 0,
 	}
 	if request.OutputPath != "" {
-		if err := modarchive.BuildVersioned(request.OutputPath, request.MainLanguage, patchRows, version); err != nil {
+		if len(derivedHUD) != 0 {
+			if err := modarchive.BuildVersionedWithHUD(request.OutputPath, request.MainLanguage, patchRows, derivedHUD, version); err != nil {
+				return Result{}, fmt.Errorf("build HUD prototype mod archive: %w", err)
+			}
+		} else if err := modarchive.BuildVersioned(request.OutputPath, request.MainLanguage, patchRows, version); err != nil {
 			return Result{}, fmt.Errorf("build mod archive: %w", err)
 		}
 		result.OutputPath = request.OutputPath
 		return result, nil
 	}
 
-	installPath, err := modinstall.InstallVersioned(request.MainLanguage, patchRows, version)
+	var installPath string
+	if len(derivedHUD) != 0 {
+		installPath, err = modinstall.InstallVersionedWithHUD(request.MainLanguage, patchRows, derivedHUD, version)
+	} else {
+		installPath, err = modinstall.InstallVersioned(request.MainLanguage, patchRows, version)
+	}
 	if err != nil {
 		return Result{}, fmt.Errorf("install generated mod: %w", err)
 	}
@@ -130,6 +157,8 @@ func mergeRowsForStyle(style SubtitleStyle, mainRows, secondaryRows []localizati
 		return localization.MergeDialogueRowsTagged(mainRows, secondaryRows, mainTag, secondaryTag)
 	case SubtitleStyleDifferentiated:
 		return localization.MergeDialogueRowsDifferentiated(mainRows, secondaryRows, mainTag, secondaryTag)
+	case SubtitleStyleHUD:
+		return localization.MergeDialogueRowsHUDPrototype(mainRows, secondaryRows, mainTag, secondaryTag)
 	default:
 		return nil, localization.MergeStats{}, fmt.Errorf("%w: unsupported subtitle style %q", ErrInvalidRequest, style)
 	}
