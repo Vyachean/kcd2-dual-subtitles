@@ -30,7 +30,7 @@ func TestRunGeneratePassesDifferentiatedSubtitleStyle(t *testing.T) {
 	if gotRequest.SubtitleStyle != generator.SubtitleStyleDifferentiated {
 		t.Fatalf("SubtitleStyle = %q, want %q", gotRequest.SubtitleStyle, generator.SubtitleStyleDifferentiated)
 	}
-	if !strings.Contains(stdout.String(), "Subtitle style: differentiated") {
+	if !strings.Contains(stdout.String(), "Experimental subtitle style: differentiated") {
 		t.Fatalf("stdout = %q, want differentiated style report", stdout.String())
 	}
 }
@@ -55,6 +55,9 @@ func TestRunGenerateDefaultsToTaggedSubtitleStyle(t *testing.T) {
 	}
 	if gotRequest.SubtitleStyle != generator.SubtitleStyleTagged {
 		t.Fatalf("SubtitleStyle = %q, want %q", gotRequest.SubtitleStyle, generator.SubtitleStyleTagged)
+	}
+	if strings.Contains(stdout.String(), "subtitle style") {
+		t.Fatalf("default tagged mode changed normal CLI output: %q", stdout.String())
 	}
 }
 
