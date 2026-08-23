@@ -14,11 +14,11 @@ import (
 const swHide = 0
 
 var (
-	launcherKernel32              = syscall.NewLazyDLL("kernel32.dll")
-	launcherUser32                = syscall.NewLazyDLL("user32.dll")
-	procGetConsoleWindow          = launcherKernel32.NewProc("GetConsoleWindow")
-	procGetConsoleProcessList     = launcherKernel32.NewProc("GetConsoleProcessList")
-	procShowWindow                = launcherUser32.NewProc("ShowWindow")
+	launcherKernel32          = syscall.NewLazyDLL("kernel32.dll")
+	launcherUser32            = syscall.NewLazyDLL("user32.dll")
+	procGetConsoleWindow      = launcherKernel32.NewProc("GetConsoleWindow")
+	procGetConsoleProcessList = launcherKernel32.NewProc("GetConsoleProcessList")
+	procShowWindow            = launcherUser32.NewProc("ShowWindow")
 )
 
 // Run selects the native GUI for an ordinary no-argument Windows launch and
