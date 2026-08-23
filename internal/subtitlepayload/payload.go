@@ -6,11 +6,14 @@ import (
 )
 
 const (
-	// Prefix/Suffix wrap the secondary subtitle in an HTML comment. The retail
-	// HUD prototype keeps this metadata invisible to the vanilla htmlText path,
-	// then extracts it from the original fc_setSubtitles text argument.
-	Prefix = "<!--KCD2DS1:"
-	Suffix = "-->"
+	// Prefix/Suffix deliberately use plain text for the next retail diagnostic.
+	// If the derived HUD is not active, the marker remains visibly present in the
+	// subtitle and proves that localization payload transport is working. If the
+	// wrapper is active, it can detect the same marker and append the styled
+	// secondary line. This avoids the ambiguity of the rc.2 HTML-comment carrier,
+	// which vanilla rendering could hide even when the HUD override was absent.
+	Prefix = "[KCD2DS1|"
+	Suffix = "|KCD2DS1]"
 
 	HUDWrapperMarker = "KCD2DS_HUD_WRAPPER_V1"
 
@@ -28,9 +31,6 @@ func EncodeSecondaryHTML(text string) string {
 	encoded = strings.ReplaceAll(encoded, "&lt;br/&gt;", "<br/>")
 	encoded = strings.ReplaceAll(encoded, "&lt;br /&gt;", "<br />")
 	encoded = strings.ReplaceAll(encoded, "&lt;br&gt;", "<br>")
-	// HTML comments cannot contain --. Encode the second dash so the payload
-	// cannot terminate its own invisible marker; htmlText decodes it back.
-	encoded = strings.ReplaceAll(encoded, "--", "-&#45;")
 	return encoded
 }
 
