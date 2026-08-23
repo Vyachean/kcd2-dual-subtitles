@@ -29,6 +29,7 @@ const (
 	actionReturn          byte = 0x3e
 	actionEquals2         byte = 0x49
 	actionGetMember       byte = 0x4e
+	actionSetMember       byte = 0x4f
 	actionCallMethod      byte = 0x52
 	actionStoreRegister   byte = 0x87
 	actionDefineFunction2 byte = 0x8e
@@ -586,22 +587,21 @@ func buildWrapperBody() ([]byte, error) {
 	builder.storeRegister(6)
 	builder.simple(actionPop)
 
-	// bc.subtitles.inside.tField.appendHtml(styled secondary)
+	// tField.htmlText = tField.htmlText + styled secondary. This deliberately
+	// writes through the standard TextField htmlText property after the vanilla
+	// subtitle function has applied its global size and speaker-name formatting.
+	builder.pushTextField()
+	builder.pushString("htmlText")
+	builder.pushTextField()
+	builder.pushString("htmlText")
+	builder.simple(actionGetMember)
 	builder.pushString("<br/><font color='" + subtitlepayload.SecondaryColor + "' size='" + strconv.Itoa(subtitlepayload.SecondarySize) + "'><i>")
 	builder.pushRegister(6)
 	builder.simple(actionStringAdd)
 	builder.pushString("</i></font>")
 	builder.simple(actionStringAdd)
-	builder.pushInt(1)
-	builder.pushString("bc")
-	builder.simple(actionGetVariable)
-	for _, member := range []string{"subtitles", "inside", "tField"} {
-		builder.pushString(member)
-		builder.simple(actionGetMember)
-	}
-	builder.pushString("appendHtml")
-	builder.simple(actionCallMethod)
-	builder.simple(actionPop)
+	builder.simple(actionStringAdd)
+	builder.simple(actionSetMember)
 
 	// Reuse the vanilla background measurement after the final htmlText change.
 	builder.pushInt(0)
@@ -691,6 +691,15 @@ func (b *actionBuilder) storeRegister(register byte) {
 		panic(err)
 	}
 	b.data = append(b.data, record...)
+}
+
+func (b *actionBuilder) pushTextField() {
+	b.pushString("bc")
+	b.simple(actionGetVariable)
+	for _, member := range []string{"subtitles", "inside", "tField"} {
+		b.pushString(member)
+		b.simple(actionGetMember)
+	}
 }
 
 func (b *actionBuilder) ifTrue(label string) {
