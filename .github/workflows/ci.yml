@@ -94,6 +94,18 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           go build -trimpath -o dist/kcd2-dual-subtitles.exe ./cmd/kcd2-dual-subtitles
 
+      - name: Smoke-test CLI entrypoint
+        shell: pwsh
+        run: |
+          $version = (& .\dist\kcd2-dual-subtitles.exe --version).Trim()
+          if ($version -ne "kcd2-dual-subtitles dev") {
+            throw "Unexpected --version output: '$version'"
+          }
+          $help = (& .\dist\kcd2-dual-subtitles.exe --help) -join "`n"
+          if ($help -notmatch "Usage:") {
+            throw "--help did not produce CLI usage output"
+          }
+
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
