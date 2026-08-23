@@ -42,7 +42,7 @@ const (
 const (
 	originalSubtitleFunction = "__kcd2ds_original_fc_setSubtitles"
 	wrapperVersionVariable   = "__kcd2ds_hud_wrapper_version"
-	subtitleFunction          = "fc_setSubtitles"
+	subtitleFunction         = "fc_setSubtitles"
 )
 
 var (
