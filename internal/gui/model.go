@@ -10,13 +10,13 @@ import (
 // Model contains platform-independent GUI state so startup and state
 // transitions can be verified without driving native Win32 controls.
 type Model struct {
-	GameRoot           string
-	AutoDetected       bool
-	CandidateCount     int
-	Installed          bool
-	InstallPath        string
-	Status             string
-	InstallationKnown  bool
+	GameRoot          string
+	AutoDetected      bool
+	CandidateCount    int
+	Installed         bool
+	InstallPath       string
+	Status            string
+	InstallationKnown bool
 }
 
 // NewModel combines best-effort autodetection with current installation state.
@@ -24,9 +24,9 @@ type Model struct {
 // fallback path.
 func NewModel(detection gamedetect.Result, detectionErr error, installation modinstall.Status, installationErr error) Model {
 	model := Model{
-		CandidateCount: len(detection.Candidates),
-		Installed:      installation.Installed,
-		InstallPath:    installation.Path,
+		CandidateCount:    len(detection.Candidates),
+		Installed:         installation.Installed,
+		InstallPath:       installation.Path,
 		InstallationKnown: installationErr == nil,
 	}
 
