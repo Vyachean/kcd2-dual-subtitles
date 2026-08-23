@@ -149,7 +149,6 @@ func TestRunGenerateEndToEndXboxStyleRoot(t *testing.T) {
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
-
 	if _, err := os.Stat(filepath.Join(gameRoot, "KingdomCome.exe")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("test root unexpectedly contains KingdomCome.exe: %v", err)
 	}
@@ -232,9 +231,9 @@ func TestInteractiveDefaultsAndQuotedPaths(t *testing.T) {
 		return generator.Result{
 			OutputPath: request.OutputPath,
 			Stats: localization.MergeStats{
-				Processed:  10,
+				Processed: 10,
 				Bilingual: 9,
-				Identical:  1,
+				Identical: 1,
 			},
 		}, nil
 	}
