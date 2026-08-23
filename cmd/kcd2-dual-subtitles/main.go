@@ -1,11 +1,13 @@
 package main
 
-import "fmt"
+import (
+	"os"
 
-const appName = "kcd2-dual-subtitles"
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/cli"
+)
 
 var version = "dev"
 
 func main() {
-	fmt.Printf("%s %s\n", appName, version)
+	os.Exit(cli.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr, version))
 }
