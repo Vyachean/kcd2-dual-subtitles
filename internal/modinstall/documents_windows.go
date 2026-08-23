@@ -4,6 +4,7 @@ package modinstall
 
 import (
 	"fmt"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -42,6 +43,11 @@ const (
 // SHGetKnownFolderPath. This follows redirected and OneDrive-backed Documents
 // folders instead of assuming %USERPROFILE%\Documents.
 func documentsPath() (string, error) {
+	// COM initialization is scoped to an OS thread. Keep the goroutine pinned
+	// until SHGetKnownFolderPath and any matching CoUninitialize call finish.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	hr, _, _ := procCoInitializeEx.Call(0, coinitApartmentThreaded)
 	hresult := uint32(hr)
 	initializedHere := hresult == sOK || hresult == sFalse
@@ -65,7 +71,7 @@ func documentsPath() (string, error) {
 		return "", fmt.Errorf("resolve FOLDERID_Documents: HRESULT 0x%08X", uint32(hr))
 	}
 	if path == nil {
-		return "", errorsNewKnownFolderReturnedNil()
+		return "", fmt.Errorf("resolve FOLDERID_Documents: returned nil path")
 	}
 
 	resolved := utf16PtrToString(path)
@@ -89,8 +95,4 @@ func utf16PtrToString(ptr *uint16) string {
 		length++
 	}
 	return syscall.UTF16ToString(unsafe.Slice(ptr, length))
-}
-
-func errorsNewKnownFolderReturnedNil() error {
-	return fmt.Errorf("resolve FOLDERID_Documents: returned nil path")
 }
