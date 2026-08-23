@@ -32,7 +32,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer, version strin
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer, version string, generate generateFunc) int {
 	if len(args) == 0 {
-		return runInteractive(stdin, stdout, stderr, generate)
+		return runInteractive(stdin, stdout, stderr, version, generate)
 	}
 
 	switch args[0] {
@@ -43,7 +43,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, version strin
 		fmt.Fprintf(stdout, "%s %s\n", AppName, version)
 		return ExitSuccess
 	case "generate":
-		return runGenerate(args[1:], stdout, stderr, generate)
+		return runGenerate(args[1:], stdout, stderr, version, generate)
 	default:
 		fmt.Fprintf(stderr, "error: unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -51,7 +51,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, version strin
 	}
 }
 
-func runGenerate(args []string, stdout, stderr io.Writer, generate generateFunc) int {
+func runGenerate(args []string, stdout, stderr io.Writer, version string, generate generateFunc) int {
 	flags := flag.NewFlagSet("generate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 
@@ -59,6 +59,7 @@ func runGenerate(args []string, stdout, stderr io.Writer, generate generateFunc)
 	mainName := flags.String("main", defaultMainLanguage, "main subtitle language")
 	secondaryName := flags.String("secondary", defaultSecondaryLanguage, "secondary subtitle language")
 	outputPath := flags.String("output", "", "write a portable mod ZIP instead of installing it")
+	canaryID := flags.String("canary-id", "", "acceptance-only localization row ID to prefix with [KCD2DS TEST]")
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -97,11 +98,13 @@ func runGenerate(args []string, stdout, stderr io.Writer, generate generateFunc)
 		MainLanguage:      mainLanguage,
 		SecondaryLanguage: secondaryLanguage,
 		OutputPath:        strings.TrimSpace(*outputPath),
+		Version:           version,
+		CanaryID:          strings.TrimSpace(*canaryID),
 	}
 	return executeGeneration(request, stdout, stderr, generate)
 }
 
-func runInteractive(stdin io.Reader, stdout, stderr io.Writer, generate generateFunc) int {
+func runInteractive(stdin io.Reader, stdout, stderr io.Writer, version string, generate generateFunc) int {
 	reader := bufio.NewReader(stdin)
 
 	gameRoot, err := prompt(reader, stdout, "KCD2 game root: ")
@@ -148,6 +151,7 @@ func runInteractive(stdin io.Reader, stdout, stderr io.Writer, generate generate
 		GameRoot:          gameRoot,
 		MainLanguage:      mainLanguage,
 		SecondaryLanguage: secondaryLanguage,
+		Version:           version,
 	}, stdout, stderr, generate)
 }
 
@@ -166,6 +170,7 @@ func executeGeneration(request generator.Request, stdout, stderr io.Writer, gene
 	} else {
 		fmt.Fprintf(stdout, "Created: %s\n", result.OutputPath)
 	}
+	fmt.Fprintf(stdout, "Patch rows: %d\n", result.PatchRows)
 	fmt.Fprintf(stdout, "Processed: %d\n", result.Stats.Processed)
 	fmt.Fprintf(stdout, "Bilingual: %d\n", result.Stats.Bilingual)
 	fmt.Fprintf(stdout, "Identical: %d\n", result.Stats.Identical)
@@ -173,6 +178,9 @@ func executeGeneration(request generator.Request, stdout, stderr io.Writer, gene
 	fmt.Fprintf(stdout, "Main empty fallback: %d\n", result.Stats.MainEmptyFallback)
 	fmt.Fprintf(stdout, "Secondary empty fallback: %d\n", result.Stats.SecondaryEmptyFallback)
 	fmt.Fprintf(stdout, "Secondary only: %d\n", result.Stats.SecondaryOnly)
+	if result.CanaryID != "" {
+		fmt.Fprintf(stdout, "Diagnostic canary enabled for localization ID: %s\n", result.CanaryID)
+	}
 	return ExitSuccess
 }
 
@@ -198,8 +206,8 @@ func normalizeInteractivePath(value string) string {
 
 func printUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English]\n", AppName)
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] --output <mod.zip>\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "  %s --help\n", AppName)
 	fmt.Fprintf(output, "  %s --version\n", AppName)
 	fmt.Fprintf(output, "  %s              # interactive install mode\n", AppName)
@@ -207,8 +215,9 @@ func printUsage(output io.Writer) {
 
 func printGenerateUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English]\n", AppName)
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] --output <mod.zip>\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "\nWithout --output, the Windows build installs into Documents\\kingdomcome_mods.\n")
+	fmt.Fprintf(output, "--canary-id is acceptance-only and visibly prefixes that localization row with [KCD2DS TEST].\n")
 	fmt.Fprintf(output, "Supported languages: English, Russian\n")
 }
