@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	BilingualSeparator            = `\n`
+	BilingualSeparator           = `\n`
 	DifferentiatedSecondaryColor = "#A8A8A8"
 )
 
