@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ManifestFilename                 = "mod.manifest"
+	ManifestFilename                = "mod.manifest"
 	GeneratedDialogueXMLArchivePath = "text_kcd_dual_subtitles.xml"
 
 	// ZIP's legacy MS-DOS date representation of 1980-01-01. We deliberately
