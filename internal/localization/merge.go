@@ -3,6 +3,8 @@ package localization
 import (
 	"errors"
 	"fmt"
+
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/subtitlepayload"
 )
 
 const (
@@ -37,14 +39,19 @@ func MergeDialogueRowsTagged(main, secondary []DialogueRow, mainTag, secondaryTa
 	return mergeDialogueRows(main, secondary, mainTag, secondaryTag, formatTaggedBilingual)
 }
 
-// MergeDialogueRowsDifferentiated keeps the main subtitle line in the vanilla
-// style while wrapping the secondary line in the subset of Scaleform HTML that
-// retail KCD2's TextExtension.setText already consumes through htmlText. The
-// vanilla HUD applies one global subtitle font size after setText, so this
-// experimental formatter intentionally distinguishes the secondary line only
-// with color and italic styling; independent sizes require the later HUD patch.
+// MergeDialogueRowsDifferentiated is the failed Stage A localization-only
+// experiment retained for reproducibility of v0.3.0-rc.1. New experiments
+// should use MergeDialogueRowsHUDPrototype instead.
 func MergeDialogueRowsDifferentiated(main, secondary []DialogueRow, mainTag, secondaryTag string) ([]DialogueRow, MergeStats, error) {
 	return mergeDialogueRows(main, secondary, mainTag, secondaryTag, formatDifferentiatedBilingual)
+}
+
+// MergeDialogueRowsHUDPrototype keeps the primary subtitle visible to the
+// vanilla HUD and carries a safely encoded secondary line in an invisible
+// project marker. The derived HUD wrapper reads that marker from the original
+// fc_setSubtitles argument after vanilla formatting has completed.
+func MergeDialogueRowsHUDPrototype(main, secondary []DialogueRow, mainTag, secondaryTag string) ([]DialogueRow, MergeStats, error) {
+	return mergeDialogueRows(main, secondary, mainTag, secondaryTag, formatHUDPrototypeBilingual)
 }
 
 func mergeDialogueRows(main, secondary []DialogueRow, mainTag, secondaryTag string, format bilingualFormatter) ([]DialogueRow, MergeStats, error) {
@@ -112,6 +119,14 @@ func formatDifferentiatedBilingual(mainText, secondaryText, mainTag, secondaryTa
 		secondaryText = "[" + secondaryTag + "] " + secondaryText
 	}
 	return mainText + BilingualSeparator + "<font color='" + DifferentiatedSecondaryColor + "'><i>" + secondaryText + "</i></font>"
+}
+
+func formatHUDPrototypeBilingual(mainText, secondaryText, mainTag, secondaryTag string) string {
+	if mainTag != "" && secondaryTag != "" {
+		mainText = "[" + mainTag + "] " + mainText
+		secondaryText = "[" + secondaryTag + "] " + secondaryText
+	}
+	return subtitlepayload.WrapSecondary(secondaryText) + mainText
 }
 
 func indexDialogueIDs(rows []DialogueRow, side string) (map[string]struct{}, error) {

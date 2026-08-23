@@ -59,7 +59,7 @@ func runGenerate(args []string, stdout, stderr io.Writer, version string, genera
 	gameRoot := flags.String("game", "", "KCD2 game root containing Localization")
 	mainName := flags.String("main", defaultMainLanguage, "main subtitle language")
 	secondaryName := flags.String("secondary", defaultSecondaryLanguage, "secondary subtitle language")
-	subtitleStyleName := flags.String("subtitle-style", defaultSubtitleStyle, "subtitle style: tagged or differentiated (experimental)")
+	subtitleStyleName := flags.String("subtitle-style", defaultSubtitleStyle, "subtitle style: tagged, differentiated, or hud (experimental)")
 	outputPath := flags.String("output", "", "write a portable mod ZIP instead of installing it")
 	canaryID := flags.String("canary-id", "", "acceptance-only localization row ID to prefix with [KCD2DS TEST]")
 
@@ -96,7 +96,7 @@ func runGenerate(args []string, stdout, stderr io.Writer, version string, genera
 	}
 	subtitleStyle, ok := generator.ParseSubtitleStyle(*subtitleStyleName)
 	if !ok {
-		fmt.Fprintf(stderr, "error: unsupported subtitle style %q; use tagged or differentiated\n", *subtitleStyleName)
+		fmt.Fprintf(stderr, "error: unsupported subtitle style %q; use tagged, differentiated, or hud\n", *subtitleStyleName)
 		return ExitUsage
 	}
 
@@ -178,7 +178,10 @@ func executeGeneration(request generator.Request, stdout, stderr io.Writer, gene
 	} else {
 		fmt.Fprintf(stdout, "Created: %s\n", result.OutputPath)
 	}
-	if result.SubtitleStyle == generator.SubtitleStyleDifferentiated {
+	switch {
+	case result.HUDOverride:
+		fmt.Fprintln(stdout, "Derived HUD override: enabled (experimental)")
+	case result.SubtitleStyle == generator.SubtitleStyleDifferentiated:
 		fmt.Fprintln(stdout, "Experimental subtitle style: differentiated")
 	}
 	fmt.Fprintf(stdout, "Patch rows: %d\n", result.PatchRows)
@@ -217,8 +220,8 @@ func normalizeInteractivePath(value string) string {
 
 func printUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--subtitle-style tagged|differentiated] [--canary-id <row-id>]\n", AppName)
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--subtitle-style tagged|differentiated] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--subtitle-style tagged|differentiated|hud] [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--subtitle-style tagged|differentiated|hud] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "  %s --help\n", AppName)
 	fmt.Fprintf(output, "  %s --version\n", AppName)
 	fmt.Fprintf(output, "  %s              # native GUI on Windows; interactive fallback elsewhere\n", AppName)
@@ -226,10 +229,10 @@ func printUsage(output io.Writer) {
 
 func printGenerateUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--subtitle-style tagged|differentiated] [--canary-id <row-id>]\n", AppName)
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--subtitle-style tagged|differentiated] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--subtitle-style tagged|differentiated|hud] [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] [--subtitle-style tagged|differentiated|hud] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "\nWithout --output, the Windows build installs into Documents\\kingdomcome_mods.\n")
-	fmt.Fprintf(output, "--subtitle-style defaults to tagged; differentiated is an experimental vanilla-HUD color/italic style for v0.3 testing.\n")
+	fmt.Fprintf(output, "--subtitle-style defaults to tagged. differentiated reproduces the failed rc.1 localization-only experiment; hud derives an experimental HUD override from the installed game.\n")
 	fmt.Fprintf(output, "--canary-id is acceptance-only and visibly prefixes that localization row with [KCD2DS TEST].\n")
 	fmt.Fprintf(output, "Supported languages: English, Russian\n")
 }
