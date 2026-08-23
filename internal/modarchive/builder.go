@@ -7,14 +7,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 )
 
 const (
-	ManifestArchivePath             = "mod.manifest"
-	GeneratedDialogueXMLArchivePath = "text_dualdialog.xml"
+	ManifestFilename                 = "mod.manifest"
+	GeneratedDialogueXMLArchivePath = "text_kcd_dual_subtitles.xml"
+
+	// ZIP's legacy MS-DOS date representation of 1980-01-01. We deliberately
+	// leave FileHeader.Modified zero so Go does not emit extended timestamp
+	// extra fields that are known to cause CryPak compatibility problems.
+	deterministicDOSDate uint16 = 33
+	deterministicDOSTime uint16 = 0
 )
 
 var (
@@ -22,14 +27,13 @@ var (
 	ErrOutputExists        = errors.New("output path already exists")
 )
 
-var deterministicZipTime = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
-
 type archiveEntry struct {
 	name string
 	data []byte
 }
 
-// Build writes a standalone KCD2 dual-subtitle mod archive to outputPath.
+// Build writes a directly installable KCD2 mod distribution ZIP to outputPath.
+// Extracting it into the game's Mods directory creates the ModID folder.
 // outputPath must not already exist.
 func Build(outputPath string, mainLanguage localization.Language, rows []localization.DialogueRow) error {
 	archiveData, err := buildArchiveBytes(mainLanguage, rows)
@@ -52,9 +56,9 @@ func buildArchiveBytes(mainLanguage localization.Language, rows []localization.D
 	}
 
 	return buildZip([]archiveEntry{
-		{name: ManifestArchivePath, data: []byte(manifest)},
-		{name: filepath.ToSlash(filepath.Join("Localization", languageInfo.PakFilename)), data: localizationPAK},
-	})
+		{name: modArchivePath(ManifestFilename), data: []byte(manifest)},
+		{name: modArchivePath(filepath.ToSlash(filepath.Join("Localization", languageInfo.PakFilename))), data: localizationPAK},
+	}, zip.Deflate)
 }
 
 func buildLocalizationPAK(rows []localization.DialogueRow) ([]byte, error) {
@@ -63,22 +67,29 @@ func buildLocalizationPAK(rows []localization.DialogueRow) ([]byte, error) {
 		return nil, err
 	}
 
+	// Store is the conservative format documented by the official KCD2 wiki.
+	// More recent tooling also accepts Deflate, but compression is immaterial for
+	// this small generated PAK and Store minimizes format variance.
 	return buildZip([]archiveEntry{
 		{name: GeneratedDialogueXMLArchivePath, data: dialogueXML},
-	})
+	}, zip.Store)
 }
 
-func buildZip(entries []archiveEntry) ([]byte, error) {
+func modArchivePath(relativePath string) string {
+	return filepath.ToSlash(filepath.Join(ModID, relativePath))
+}
+
+func buildZip(entries []archiveEntry, method uint16) ([]byte, error) {
 	var buffer bytes.Buffer
 	writer := zip.NewWriter(&buffer)
 
 	for _, entry := range entries {
 		header := &zip.FileHeader{
-			Name:   entry.name,
-			Method: zip.Deflate,
+			Name:         entry.name,
+			Method:       method,
+			ModifiedTime: deterministicDOSTime,
+			ModifiedDate: deterministicDOSDate,
 		}
-		header.SetModTime(deterministicZipTime)
-		header.SetMode(0o644)
 
 		entryWriter, err := writer.CreateHeader(header)
 		if err != nil {
