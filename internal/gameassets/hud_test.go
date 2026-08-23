@@ -15,7 +15,7 @@ func TestReadHUDReadsExactRetailPath(t *testing.T) {
 		t.Fatalf("create Data directory: %v", err)
 	}
 	writeTestPAK(t, pakPath, map[string][]byte{
-		"Libs/UI/hud.gfx": []byte("hud-bytes"),
+		"Libs/UI/hud.gfx":  []byte("hud-bytes"),
 		"Libs/UI/Menu.gfx": []byte("menu"),
 	})
 
