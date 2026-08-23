@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Table>
+<Row><Cell>dialog_regular</Cell><Cell>synthetic-source</Cell><Cell>Здравствуй, путник.</Cell></Row>
+<Row><Cell>dialog_entities</Cell><Cell>synthetic-source</Cell><Cell>Хлеб &amp; сыр &lt;пример&gt; &quot;в кавычках&quot;.</Cell></Row>
+<Row><Cell>dialog_multiline</Cell><Cell>synthetic-source</Cell><Cell>Первая строка.
+Вторая строка.</Cell></Row>
+<Row><Cell>dialog_identical</Cell><Cell>synthetic-source</Cell><Cell>[pause]</Cell></Row>
+<Row><Cell>dialog_missing_secondary</Cell><Cell>synthetic-source</Cell><Cell>Эта строка есть только в основном языке.</Cell></Row>
+<Row><Cell>dialog_empty</Cell><Cell>synthetic-source</Cell><Cell></Cell></Row>
+</Table>
