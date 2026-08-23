@@ -34,6 +34,37 @@ func TestLookupLanguageRejectsUnsupported(t *testing.T) {
 	}
 }
 
+func TestParseLanguage(t *testing.T) {
+	tests := []struct {
+		input string
+		want  Language
+	}{
+		{input: "English", want: English},
+		{input: "english", want: English},
+		{input: " ENGLISH ", want: English},
+		{input: "Russian", want: Russian},
+		{input: "rUsSiAn", want: Russian},
+	}
+
+	for _, tt := range tests {
+		got, ok := ParseLanguage(tt.input)
+		if !ok {
+			t.Fatalf("ParseLanguage(%q) returned unsupported", tt.input)
+		}
+		if got != tt.want {
+			t.Fatalf("ParseLanguage(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestParseLanguageRejectsUnsupported(t *testing.T) {
+	for _, input := range []string{"", "German", "Rus", "English (US)"} {
+		if got, ok := ParseLanguage(input); ok {
+			t.Fatalf("ParseLanguage(%q) unexpectedly resolved to %q", input, got)
+		}
+	}
+}
+
 func TestSupportedLanguagesStableOrderAndCopy(t *testing.T) {
 	got := SupportedLanguages()
 	want := []LanguageInfo{
