@@ -26,6 +26,11 @@ func TestUninstallFromDocumentsRemovesOnlyOwnModAndOrderLines(t *testing.T) {
 	if err := os.WriteFile(orderPath, order, 0o640); err != nil {
 		t.Fatal(err)
 	}
+	beforeInfo, err := os.Stat(orderPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforePermissions := beforeInfo.Mode().Perm()
 
 	result, err := uninstallFromDocuments(documents)
 	if err != nil {
@@ -52,8 +57,8 @@ func TestUninstallFromDocumentsRemovesOnlyOwnModAndOrderLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o640 {
-		t.Fatalf("mod_order permissions = %o, want 640", info.Mode().Perm())
+	if info.Mode().Perm() != beforePermissions {
+		t.Fatalf("mod_order permissions = %o, want original %o", info.Mode().Perm(), beforePermissions)
 	}
 }
 
@@ -124,7 +129,8 @@ func TestUninstallFromDocumentsRollsBackModWhenOrderPublishFails(t *testing.T) {
 	defer func() { renamePath = originalRename }()
 	publishFailures := 0
 	renamePath = func(oldPath, newPath string) error {
-		if strings.Contains(filepath.Base(oldPath), ".mod_order.txt.uninstall-") && newPath == orderPath {
+		base := filepath.Base(oldPath)
+		if strings.HasPrefix(base, ".mod_order.txt.uninstall-") && !strings.Contains(base, "backup") && newPath == orderPath {
 			publishFailures++
 			return errors.New("injected publish failure")
 		}
