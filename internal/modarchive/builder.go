@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	ManifestFilename                = "mod.manifest"
-	GeneratedDialogueXMLArchivePath = "text_kcd_dual_subtitles.xml"
+	ManifestFilename = "mod.manifest"
 
 	// ZIP's legacy MS-DOS date representation of 1980-01-01. We deliberately
 	// leave FileHeader.Modified zero so Go does not emit extended timestamp
@@ -33,7 +32,7 @@ type archiveEntry struct {
 }
 
 // Build writes a directly installable KCD2 mod distribution ZIP to outputPath.
-// Extracting it into the game's Mods directory creates the ModID folder.
+// Extracting it into the platform's KCD2 mod directory creates the ModID folder.
 // outputPath must not already exist.
 func Build(outputPath string, mainLanguage localization.Language, rows []localization.DialogueRow) error {
 	archiveData, err := buildArchiveBytes(mainLanguage, rows)
@@ -67,11 +66,13 @@ func buildLocalizationPAK(rows []localization.DialogueRow) ([]byte, error) {
 		return nil, err
 	}
 
-	// Store is the conservative format documented by the official KCD2 wiki.
-	// More recent tooling also accepts Deflate, but compression is immaterial for
-	// this small generated PAK and Store minimizes format variance.
+	// We modify existing base-game dialogue IDs, so the generated resource must
+	// use the same internal path as the base localization PAK in order to
+	// override text_ui_dialog.xml when the mod is loaded.
+	//
+	// Store is the conservative PAK format documented by the official KCD2 wiki.
 	return buildZip([]archiveEntry{
-		{name: GeneratedDialogueXMLArchivePath, data: dialogueXML},
+		{name: localization.DialogueXMLArchivePath, data: dialogueXML},
 	}, zip.Store)
 }
 

@@ -1,6 +1,6 @@
 # KCD2 mod format decisions
 
-This document records the format assumptions used by `kcd2-dual-subtitles` and the evidence reviewed for Stage 7. In-game Xbox Store verification remains Stage 8.
+This document records the format assumptions used by `kcd2-dual-subtitles` and the evidence reviewed through Stage 8. Retail-game rendering remains the final acceptance authority.
 
 ## Evidence reviewed
 
@@ -19,42 +19,51 @@ Relevant pages:
 
 Validated facts:
 
-- A manually installed mod is a subdirectory below the game's `Mods/` directory.
 - `mod.manifest` is loose at the mod root.
-- Localization PAKs live at `Localization/<language>_xml.pak` inside that mod folder.
+- Localization PAKs live at `Localization/<language>_xml.pak` inside the mod folder.
 - Published-game localization content must be packed into PAK files.
 - A mod id must contain only lowercase letters and underscores.
-- `mod_order.txt` is optional. If it exists, only listed mod ids load; without it, ordinary `Mods/` folders are loaded alphabetically after Steam Workshop mods.
 - The documented localization row is three cells: string ID, optional source-language text, target-language text.
+- A base-game resource is overridden by placing a file with the identical internal path/name in the mod PAK.
 
-The official publishing page describes PAKs as ZIP archives without compression. The maintained tooling below reports that both Store and Deflate are accepted by current CryPak; this project uses Store for localization PAKs because it is the conservative intersection of both sources and the file is small enough that compression is not important.
+The last point is critical for this project. We modify existing dialogue string IDs from the base `text_ui_dialog.xml`, so the generated localization PAK must itself contain `text_ui_dialog.xml` at the archive root.
 
-### Current KCD2 PAK tooling
+The official publishing page describes PAKs as ZIP archives without compression. This project therefore uses ZIP Store for the game-facing localization PAK.
 
-`muyuanjin/kcd2-mod-docs` includes a current `kcd2_pak.py` validator/packer, updated 2026-06-28:
+### Real Xbox Store localization files
 
-<https://github.com/muyuanjin/kcd2-mod-docs/blob/main/.agents/skills/kcd2-mod-workflow/scripts/kcd2_pak.py>
+The Stage 8 user supplied the current Xbox Store `Russian_xml.pak` and `English_xml.pak` privately for structural analysis. Their contents were not committed or uploaded to the repository.
 
-It enforces `^[a-z_]+$` for mod ids and accepts Store or Deflate compression.
+Observed:
 
-`tkhquang/kcd-pak-action`, reviewed in August 2026, documents a more specific CryPak compatibility issue: ZIP extended timestamp metadata written by some archivers can make a PAK unloadable, while Store and Deflate both work. It produces a deploy-ready `<modid>/` folder containing `mod.manifest` and localization PAKs:
+- both are valid ZIP/PAK files;
+- both contain `text_ui_dialog.xml` at the archive root;
+- both contain 177,930 dialogue rows;
+- every dialogue row has three cells;
+- EN/RU ID sets and ordering match exactly;
+- no duplicate dialogue IDs were found;
+- the base-game PAK uses Deflate and a CryEngine-specific ZIP extra field `0x4450`.
 
-<https://github.com/tkhquang/kcd-pak-action>
+The project continues to use Store without timestamp extra fields because that is the conservative format documented by the official publishing guide. The real files prove that Deflate is also used by the game itself, but compression is not required for this generated PAK.
 
-Go's `archive/zip.FileHeader.Modified` documentation states that an extended timestamp is always emitted when writing a non-zero `Modified` value. Therefore game-facing PAK entries in this project intentionally leave `Modified` zero and populate only the legacy MS-DOS date/time fields. CI tests inspect the resulting PAK extra fields so this does not regress.
+### Stage 8 retail-game failure and correction
 
-### Current localization mod evidence
-
-Loot Info 1.4.1, updated 2025-11-18 and requiring KCD2 1.5.x, ships independent per-mod localization XML files such as `Localization/Russian_xml/text_ui_LootInfo.xml`. This demonstrates that a mod localization PAK can contribute an additional XML table rather than replacing the base `text_ui_dialog.xml` file.
-
-Nexus page/documentation:
-<https://www.nexusmods.com/kingdomcomedeliverance2/mods/1124>
-
-The generated dialogue table is therefore kept as its own file. Its project-owned name is:
+`v0.1.0-rc.1` generated the merged existing dialogue IDs under a new file name:
 
 `text_kcd_dual_subtitles.xml`
 
-This also aligns the generated filename with the project mod id instead of retaining the historical `text_dualdialog.xml` name from another mod.
+The mod was installed in the correct Xbox Store location, `Documents\kingdomcome_mods`, but had no visible effect anywhere in the retail game.
+
+That Stage 7 choice conflated two localization use cases:
+
+1. a mod that introduces its own localization keys can ship its own localization XML table;
+2. this tool changes existing base-game dialogue IDs and therefore needs to override the original dialogue resource.
+
+The official identical-path override rule, the real Xbox PAK layout, and current bilingual-localization tooling all support using:
+
+`text_ui_dialog.xml`
+
+The generator therefore writes the merged table under the original resource name starting with the Stage 8 correction after `rc.1`.
 
 ### Historical Dual Dialog evidence
 
@@ -62,13 +71,11 @@ The original Dual Dialog generator used a separate `text_dualdialog.xml` entry a
 
 <https://github.com/SDxBacon/kcd2-mod-dualdialog-tool/blob/master/export.go>
 
-Its published mod reports support for ordinary dialogue, overhead dialogue, and dialogue sequences. This is useful evidence for the separator and separate localization-table approach, but it is not treated as authoritative for current KCD2 behavior.
+That behavior remains historical supporting evidence only. The current Xbox Store retail build is the acceptance authority for whether literal `\\n` still renders as a subtitle line break.
 
-The literal `\\n` separator remains in v0.1. Actual rendered line separation in the current Xbox Store build is an explicit Stage 8 acceptance item.
+## Generated layout
 
-## Validated generated layout
-
-The distributable ZIP is directly extractable into the game's `Mods/` directory:
+The distributable ZIP contains:
 
 ```text
 kcd_dual_subtitles/
@@ -79,25 +86,40 @@ kcd_dual_subtitles/
 
 For an English-main generation, the PAK is `English_xml.pak` instead.
 
-The localization PAK contains:
+The localization PAK contains exactly:
 
 ```text
-text_kcd_dual_subtitles.xml
+text_ui_dialog.xml
 ```
+
+That matches the internal resource name present in the base localization PAK and is intended to override the existing dialogue table when this mod is loaded after the base game.
 
 The PAK entry uses ZIP Store compression and contains no NTFS (`0x000a`) or extended timestamp (`0x5455`) extra fields.
 
+## Installation location
+
+Installation is platform-specific and is separate from archive generation.
+
+For the Xbox app / Microsoft Store PC build, Stage 8 testing uses:
+
+```text
+Documents\kingdomcome_mods\kcd_dual_subtitles\
+```
+
+Automatic installation is tracked separately and must not block proving the generated localization override works.
+
 ## `mod_order.txt`
 
-The generator does not create or modify `mod_order.txt`.
+The generator does not currently create or modify `mod_order.txt`.
 
-This is intentional because the official installation documentation makes it optional. If a user's installation already has `mod_order.txt`, they must add `kcd_dual_subtitles` to it or use their mod manager to enable the mod. Installation guidance is finalized in Stages 8-9.
+If a user's mod setup already uses an explicit load-order file, `kcd_dual_subtitles` must be enabled through that existing flow. Automatic installation/load-order handling is tracked separately.
 
 ## Remaining Stage 8 assumptions
 
-CI can validate archive bytes and structure, but it cannot prove retail-game behavior. The following remain manual acceptance items on the current Xbox Store PC build:
+CI can validate archive bytes and structure, but it cannot prove retail-game rendering. After the `text_ui_dialog.xml` correction the remaining manual acceptance items are:
 
-- the mod folder is discovered and loaded at the documented Xbox-compatible installation location;
-- `text_kcd_dual_subtitles.xml` is merged by the retail build;
+- the current Xbox Store build loads the generated localization override;
 - literal `\\n` renders as a subtitle line break;
-- Russian + English appears in ordinary dialogue and a story cutscene.
+- Russian + English appears in ordinary dialogue;
+- Russian + English appears in a story cutscene;
+- the game remains stable with the mod enabled.
