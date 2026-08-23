@@ -1,6 +1,6 @@
 # KCD2 mod format decisions
 
-This document records the format assumptions used by `kcd2-dual-subtitles` and the evidence reviewed through Stage 8. Retail-game rendering remains the final acceptance authority.
+This document records the format used by `kcd2-dual-subtitles` for v0.1.0 and the evidence behind it.
 
 ## Evidence reviewed
 
@@ -25,9 +25,9 @@ Validated facts:
 - If `mod_order.txt` exists, only mod IDs listed in it are loaded.
 - KCD2 provides patch-style integration for data that would otherwise conflict between mods; surgical patches are preferred where supported.
 
-### Real Xbox Store localization files
+### Real Xbox / Microsoft Store localization files
 
-The Stage 8 user supplied the current Xbox Store `Russian_xml.pak` and `English_xml.pak` privately for structural analysis. Their contents were not committed or uploaded to the repository.
+The Stage 8 user supplied the current `Russian_xml.pak` and `English_xml.pak` privately for structural analysis. Their contents were not committed or uploaded to the repository.
 
 Observed:
 
@@ -41,7 +41,7 @@ Observed:
 
 The base `text_ui_dialog.xml` remains the input source for this tool.
 
-### Current working localization-patch evidence
+### Current localization-patch evidence
 
 A current KCD2 mod, Better Arm Of Beowulf (uploaded 2026-08-16 and documented as tested on retail KCD2 1.5.6), modifies existing localization IDs through language PAKs containing a resource named:
 
@@ -55,17 +55,32 @@ Its documented `kcd.log` success marker is:
 [Mod] Loading localization patch 'Localization\text_ui__better_arm_of_beowulf.xml'
 ```
 
-This is stronger current evidence for existing-ID localization changes than the old Dual Dialog layout or a full replacement of `text_ui_dialog.xml`.
+The same mod documents a CryPak failure mode where ordinary ZIP readers accept an archive but KCD2 logs `ReadFile returned 15` when ZIP local-header and central-directory metadata disagree.
 
-The same mod documents a CryPak failure mode where ordinary ZIP readers accept an archive but KCD2 logs `ReadFile returned 15` when ZIP local-header and central-directory metadata disagree. In particular, mismatched extra-field lengths can shift where CryPak expects file data to begin.
+### Stage 8 retail acceptance
 
-### Stage 8 history
+`v0.1.0-rc.4` was live-tested on **KCD2 1.5.6 Xbox / Microsoft Store**.
 
-`v0.1.0-rc.1` used a custom localization filename and had no visible effect in the retail Xbox Store game.
+Confirmed:
 
-`rc.2`/`rc.3` changed to a full `text_ui_dialog.xml` override. That correction has not yet been live-tested, and subsequent compatibility research found a better current mechanism: `text_ui__<modid>.xml` localization patches.
+- the game discovered and enabled `kcd_dual_subtitles`;
+- the generated language PAK was opened;
+- `kcd.log` reported:
 
-The next release candidate therefore uses the patch mechanism instead of treating the untested full override as final.
+```text
+[Mod] Loading localization patch 'Localization\text_ui__kcd_dual_subtitles.xml'
+```
+
+- ordinary NPC dialogue rendered both languages;
+- story/cutscene dialogue rendered both languages;
+- the literal `\\n` separator rendered as a line break;
+- no CryPak `ReadFile returned 15`, XML parse, or localization-patch errors attributable to this mod were observed.
+
+Earlier release candidates remain historical only:
+
+- `rc.1` used a custom non-patch localization filename and had no visible effect;
+- `rc.2`/`rc.3` used an untested full `text_ui_dialog.xml` override;
+- `rc.4` established the accepted patch-based format.
 
 ### Historical Dual Dialog evidence
 
@@ -73,11 +88,11 @@ The original Dual Dialog generator combined main/secondary subtitle values using
 
 <https://github.com/SDxBacon/kcd2-mod-dualdialog-tool/blob/master/export.go>
 
-This remains historical evidence for the subtitle separator only. The project no longer treats the old tool as a current packaging oracle.
+This remains historical support for the separator only. It is not treated as the current packaging oracle.
 
 ## Generated layout
 
-Automatic Xbox Store installation creates:
+Automatic Xbox / Microsoft Store installation creates:
 
 ```text
 <Documents>\kingdomcome_mods\kcd_dual_subtitles\
@@ -94,7 +109,25 @@ The localization PAK contains exactly:
 text_ui__kcd_dual_subtitles.xml
 ```
 
-The patch XML contains only rows whose final generated text differs from the installed main-language row. Identical translations, missing-secondary fallbacks, and other unchanged rows are not emitted. This reduces conflicts with unrelated localization mods.
+The patch XML contains only rows whose final generated text differs from the installed main-language row. Identical translations, missing-secondary fallbacks, and other unchanged rows are not emitted.
+
+## Bilingual text format
+
+Only rows with two distinct non-empty translations are tagged:
+
+```text
+[RU] Русский текст\n[EN] English text
+```
+
+or, with English selected as main language:
+
+```text
+[EN] English text\n[RU] Русский текст
+```
+
+The `\\n` sequence is the literal two-character game-facing separator. KCD2 1.5.6 retail acceptance confirmed that it renders as a line break.
+
+Identical text and single-language fallback rows remain untagged.
 
 ## CryPak ZIP contract
 
@@ -109,7 +142,7 @@ The game-facing localization PAK intentionally uses a conservative ZIP represent
 - deterministic DOS timestamp;
 - no ZIP64 for generated entries.
 
-CI verifies these properties by parsing the raw ZIP bytes independently of Go's `archive/zip` reader, and separately verifies that the standard ZIP reader can still read the archive.
+CI verifies these properties by parsing raw ZIP bytes independently of Go's `archive/zip` reader and separately verifies ordinary ZIP readability.
 
 ## `mod_order.txt`
 
@@ -122,34 +155,22 @@ If `Documents\kingdomcome_mods\mod_order.txt` already exists:
 - unrelated entries are never removed or reordered;
 - the update is staged and rollback-safe together with replacement of the tool's own mod directory.
 
-This is required because KCD2 ignores mods not listed in an existing `mod_order.txt`.
+The Stage 8 live test confirmed the existing load-order flow enabled the mod correctly.
 
 ## Release identity
 
-`mod.manifest` receives the executable build version. Release-candidate CI verifies the RC version used by the Windows executable is also accepted by the generated manifest contract. Development builds use `dev`.
+`mod.manifest` receives the executable build version. Release-candidate and stable-release CI set the same expected version while running native Windows tests, and the built executable must report that exact version through `--version`.
+
+Development builds use `dev`.
 
 ## Acceptance canary
 
 Normal generation contains no diagnostic marker.
 
-For a controlled live test, `--canary-id <localization-row-id>` prefixes that selected row with:
+For controlled troubleshooting, `--canary-id <localization-row-id>` prefixes that selected existing row with:
 
 ```text
 [KCD2DS TEST] 
 ```
 
-The ID must already exist in the selected main-language table. Unknown IDs are rejected. No private/game text or game-specific canary ID is committed to the repository.
-
-The canary is intended only to distinguish "the localization patch did not load" from "the patch loaded but bilingual subtitle rendering still has a problem".
-
-## Remaining Stage 8 assumptions
-
-CI can validate archive bytes, source localization structure, merge output, installation safety, and load-order integration. It still cannot prove retail-game behavior. Manual acceptance remains required for:
-
-- the Xbox Store build discovers the installed mod;
-- `kcd.log` reports loading `text_ui__kcd_dual_subtitles.xml`;
-- an explicit canary row changes when canary mode is enabled;
-- literal `\\n` renders as a subtitle line break;
-- Russian + English appears in ordinary dialogue;
-- Russian + English appears in a story cutscene;
-- the game remains stable with the mod enabled.
+Unknown IDs are rejected. No private/game text or game-specific canary ID is committed to the repository.
