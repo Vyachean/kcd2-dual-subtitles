@@ -11,11 +11,13 @@ var ErrDuplicateDialogueID = errors.New("duplicate dialogue ID")
 
 // MergeStats summarizes how main-language rows were handled during a merge.
 type MergeStats struct {
-	Processed        int
-	Bilingual        int
-	Identical        int
-	MissingSecondary int
-	SecondaryOnly    int
+	Processed              int
+	Bilingual              int
+	Identical              int
+	MissingSecondary       int
+	MainEmptyFallback      int
+	SecondaryEmptyFallback int
+	SecondaryOnly          int
 }
 
 // MergeDialogueRows combines secondary-language text into main-language rows by ID.
@@ -48,6 +50,15 @@ func MergeDialogueRows(main, secondary []DialogueRow) ([]DialogueRow, MergeStats
 		}
 		if mainRow.Text == secondaryRow.Text {
 			stats.Identical++
+			continue
+		}
+		if mainRow.Text == "" {
+			merged[i].Text = secondaryRow.Text
+			stats.MainEmptyFallback++
+			continue
+		}
+		if secondaryRow.Text == "" {
+			stats.SecondaryEmptyFallback++
 			continue
 		}
 
