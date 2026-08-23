@@ -28,7 +28,7 @@ The first validated target is Russian + English on the Xbox / Microsoft Store PC
 - [x] Stage 6 — CLI UX
 - [x] Stage 7 — current KCD2 mod-format validation
 - [x] Stage 8 — Xbox / Microsoft Store retail acceptance
-- [ ] Stage 9 — first stable release
+- [x] Stage 9 — first stable release
 
 ## Accepted v0.1 runtime contract
 
@@ -49,7 +49,7 @@ Confirmed in the retail game:
 
 Tracked by issue #32.
 
-Implementation/release requirements:
+Completed requirements:
 
 - [x] add compact `[RU]` / `[EN]` labels to truly bilingual rows while preserving main-language-first order;
 - [x] keep identical and single-language fallback rows untagged;
@@ -59,9 +59,9 @@ Implementation/release requirements:
 - [x] generate SHA-256 checksums in CI;
 - [x] replace bootstrap README with validated install/use/update/uninstall/troubleshooting documentation;
 - [x] document unsigned-executable / SmartScreen reputation behavior without bypass guidance;
-- [ ] publish `v0.1.0` through the stable release workflow;
+- [x] publish `v0.1.0` through the stable release workflow.
 
-Stage 9 is complete only after the stable workflow successfully publishes `v0.1.0`.
+The first stable `v0.1.0` release is published.
 
 ## Post-v0.1
 
