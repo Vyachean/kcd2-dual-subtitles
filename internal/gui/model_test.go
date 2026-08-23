@@ -28,7 +28,7 @@ func TestNewModelAutoSelectsOnlyUniqueDetection(t *testing.T) {
 }
 
 func TestNewModelRequiresBrowseForZeroOrMultipleCandidates(t *testing.T) {
-	for _, candidates := range [][]string{nil, {"one", "two"}} {
+	for _, candidates := range [][]string{nil, []string{"one", "two"}} {
 		model := NewModel(gamedetect.Result{Candidates: candidates}, nil, modinstall.Status{}, nil)
 		if model.GameRoot != "" || model.AutoDetected {
 			t.Fatalf("candidates=%v model=%+v", candidates, model)
