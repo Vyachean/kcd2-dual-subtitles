@@ -210,7 +210,7 @@ func printUsage(output io.Writer) {
 	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "  %s --help\n", AppName)
 	fmt.Fprintf(output, "  %s --version\n", AppName)
-	fmt.Fprintf(output, "  %s              # interactive install mode\n", AppName)
+	fmt.Fprintf(output, "  %s              # native GUI on Windows; interactive fallback elsewhere\n", AppName)
 }
 
 func printGenerateUsage(output io.Writer) {
