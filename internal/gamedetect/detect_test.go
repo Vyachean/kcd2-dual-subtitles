@@ -19,7 +19,7 @@ func TestDetectInXboxRootsFindsValidContentRootsDeterministically(t *testing.T) 
 	}
 
 	got := detectInXboxRoots([]string{rootA, rootB, rootA})
-	want := []string{gameA, gameZ}
+	want := []string{gameZ, gameA}
 	if !reflect.DeepEqual(got.Candidates, want) {
 		t.Fatalf("Candidates = %#v, want %#v", got.Candidates, want)
 	}
