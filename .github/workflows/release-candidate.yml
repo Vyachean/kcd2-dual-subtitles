@@ -117,6 +117,34 @@ jobs:
           $hash = (Get-FileHash dist/kcd2-dual-subtitles.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  kcd2-dual-subtitles.exe" | Set-Content -Path dist/SHA256SUMS.txt -Encoding ascii -NoNewline
 
+      - name: Smoke-test native GUI entrypoint
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ".\dist\kcd2-dual-subtitles.exe" -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(10)
+            $title = ""
+            do {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "GUI process exited before creating a window (exit code $($process.ExitCode))"
+              }
+              $title = $process.MainWindowTitle
+            } while ([string]::IsNullOrWhiteSpace($title) -and (Get-Date) -lt $deadline)
+
+            if ($title -notlike "KCD2 Dual Subtitles*") {
+              throw "Native GUI window was not observed; title='$title'"
+            }
+          }
+          finally {
+            $process.Refresh()
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+              $process.WaitForExit()
+            }
+          }
+
       - name: Upload release candidate assets
         uses: actions/upload-artifact@v4
         with:
@@ -172,10 +200,10 @@ jobs:
           cat > release-notes.md <<EOF
           Release candidate for Xbox Store acceptance testing.
 
-          - Built and tested entirely by GitHub Actions, including native Windows tests.
+          - Built and tested entirely by GitHub Actions, including native Windows tests and native GUI startup smoke testing.
           - Generated manifests carry the same RC version as the executable.
           - Source commit: $GITHUB_SHA
-          - This is a prerelease; in-game acceptance is not complete yet.
+          - This is a prerelease; v0.2 GUI/autodetection acceptance is not complete yet.
           EOF
 
           gh release create "$TAG" \
