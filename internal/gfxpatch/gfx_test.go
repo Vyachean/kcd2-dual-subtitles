@@ -125,8 +125,8 @@ func TestPatchHUDFailsClosedForTargetProblems(t *testing.T) {
 
 func TestPatchHUDRejectsMalformedContainers(t *testing.T) {
 	cases := map[string][]byte{
-		"short":         []byte("CFX"),
-		"signature":     append([]byte("XYZ\x08\x08\x00\x00\x00"), 0),
+		"short":          []byte("CFX"),
+		"signature":      append([]byte("XYZ\x08\x08\x00\x00\x00"), 0),
 		"bad compressed": append([]byte("CFX\x08\x10\x00\x00\x00"), []byte("not-zlib")...),
 	}
 	for name, input := range cases {
@@ -170,9 +170,9 @@ type swfTagFixture struct {
 func syntheticHUD(t *testing.T, signature string, includeAnchors bool, targetCount int, extras []swfTagFixture) []byte {
 	t.Helper()
 	var body []byte
-	body = append(body, 0x08, 0x00)       // RECT: Nbits=1, all coordinates zero.
-	body = append(body, 0x00, 0x0c)       // FrameRate 12.0 in SWF fixed8 byte order.
-	body = append(body, 0x01, 0x00)       // FrameCount=1.
+	body = append(body, 0x08, 0x00) // RECT: Nbits=1, all coordinates zero.
+	body = append(body, 0x00, 0x0c) // FrameRate 12.0 in SWF fixed8 byte order.
+	body = append(body, 0x01, 0x00) // FrameCount=1.
 
 	for i := 0; i < targetCount; i++ {
 		actions := syntheticTargetActions(t, includeAnchors)
