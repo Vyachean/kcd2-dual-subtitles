@@ -7,12 +7,12 @@ import (
 
 func TestMergeDialogueRowsTaggedPreservesLanguageOrder(t *testing.T) {
 	tests := []struct {
-		name         string
-		mainText     string
+		name          string
+		mainText      string
 		secondaryText string
-		mainTag      string
-		secondaryTag string
-		want         string
+		mainTag       string
+		secondaryTag  string
+		want          string
 	}{
 		{
 			name:          "Russian main",
