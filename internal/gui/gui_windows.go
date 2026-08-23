@@ -1,0 +1,563 @@
+//go:build windows
+
+package gui
+
+import (
+	"fmt"
+	"runtime"
+	"syscall"
+	"unsafe"
+
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/application"
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
+)
+
+const (
+	windowClassName = "KCD2DualSubtitlesWindow"
+
+	wsCaption       = 0x00C00000
+	wsSysMenu       = 0x00080000
+	wsMinimizeBox   = 0x00020000
+	wsChild         = 0x40000000
+	wsVisible       = 0x10000000
+	wsTabStop       = 0x00010000
+	wsBorder        = 0x00800000
+	wsVScroll       = 0x00200000
+	esAutoHScroll   = 0x0080
+	cbsDropdownList = 0x0003
+
+	wmCreate  = 0x0001
+	wmDestroy = 0x0002
+	wmCommand = 0x0111
+	wmSetFont = 0x0030
+
+	cbAddString = 0x0143
+	cbGetCurSel = 0x0147
+	cbSetCurSel = 0x014E
+
+	swShow = 5
+
+	colorWindow    = 5
+	idcArrow       = 32512
+	defaultGUIFont = 17
+
+	mbOK           = 0x00000000
+	mbYesNo        = 0x00000004
+	mbIconError    = 0x00000010
+	mbIconQuestion = 0x00000020
+	idYes          = 6
+
+	bifReturnOnlyFSDirs = 0x0001
+	bifEditBox          = 0x0010
+	bifNewDialogStyle   = 0x0040
+
+	coinitApartmentThreaded = 0x2
+
+	idBrowseButton    = 1001
+	idGenerateButton  = 1002
+	idUninstallButton = 1003
+)
+
+var (
+	guiUser32   = syscall.NewLazyDLL("user32.dll")
+	guiKernel32 = syscall.NewLazyDLL("kernel32.dll")
+	guiGDI32    = syscall.NewLazyDLL("gdi32.dll")
+	guiShell32  = syscall.NewLazyDLL("shell32.dll")
+	guiOle32    = syscall.NewLazyDLL("ole32.dll")
+
+	procRegisterClassW       = guiUser32.NewProc("RegisterClassW")
+	procCreateWindowExW      = guiUser32.NewProc("CreateWindowExW")
+	procDefWindowProcW       = guiUser32.NewProc("DefWindowProcW")
+	procShowWindowGUI        = guiUser32.NewProc("ShowWindow")
+	procUpdateWindowGUI      = guiUser32.NewProc("UpdateWindow")
+	procGetMessageW          = guiUser32.NewProc("GetMessageW")
+	procTranslateMessage     = guiUser32.NewProc("TranslateMessage")
+	procDispatchMessageW     = guiUser32.NewProc("DispatchMessageW")
+	procPostQuitMessage      = guiUser32.NewProc("PostQuitMessage")
+	procSendMessageW         = guiUser32.NewProc("SendMessageW")
+	procSetWindowTextW       = guiUser32.NewProc("SetWindowTextW")
+	procGetWindowTextLengthW = guiUser32.NewProc("GetWindowTextLengthW")
+	procGetWindowTextW       = guiUser32.NewProc("GetWindowTextW")
+	procEnableWindow         = guiUser32.NewProc("EnableWindow")
+	procMessageBoxW          = guiUser32.NewProc("MessageBoxW")
+	procLoadCursorW          = guiUser32.NewProc("LoadCursorW")
+
+	procGetModuleHandleW = guiKernel32.NewProc("GetModuleHandleW")
+	procGetStockObject   = guiGDI32.NewProc("GetStockObject")
+
+	procSHBrowseForFolderW   = guiShell32.NewProc("SHBrowseForFolderW")
+	procSHGetPathFromIDListW = guiShell32.NewProc("SHGetPathFromIDListW")
+	procCoInitializeEx       = guiOle32.NewProc("CoInitializeEx")
+	procCoUninitialize       = guiOle32.NewProc("CoUninitialize")
+	procCoTaskMemFree        = guiOle32.NewProc("CoTaskMemFree")
+)
+
+type wndClass struct {
+	Style      uint32
+	WndProc    uintptr
+	ClsExtra   int32
+	WndExtra   int32
+	Instance   uintptr
+	Icon       uintptr
+	Cursor     uintptr
+	Background uintptr
+	MenuName   *uint16
+	ClassName  *uint16
+}
+
+type point struct {
+	X int32
+	Y int32
+}
+
+type message struct {
+	HWnd     uintptr
+	Message  uint32
+	WParam   uintptr
+	LParam   uintptr
+	Time     uint32
+	Pt       point
+	LPrivate uint32
+}
+
+type browseInfo struct {
+	Owner       uintptr
+	Root        uintptr
+	DisplayName *uint16
+	Title       *uint16
+	Flags       uint32
+	Callback    uintptr
+	LParam      uintptr
+	Image       int32
+}
+
+type nativeWindow struct {
+	service application.Service
+	model   Model
+	version string
+
+	hwnd            uintptr
+	gameEdit        uintptr
+	mainCombo       uintptr
+	secondaryCombo  uintptr
+	generateButton  uintptr
+	uninstallButton uintptr
+	statusLabel     uintptr
+	font            uintptr
+	startupErr      error
+	languages       []localization.LanguageInfo
+}
+
+var activeWindow *nativeWindow
+
+// Run starts the single-window native UI. The application core remains shared
+// with the CLI; this function is only a thin Win32 presentation layer.
+func Run(version string) int {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	service := application.New(version)
+	detection, detectionErr := service.DetectGame()
+	installation, installationErr := service.InspectInstallation()
+	model := NewModel(detection, detectionErr, installation, installationErr)
+
+	window := &nativeWindow{
+		service:   service,
+		model:     model,
+		version:   version,
+		languages: localization.SupportedLanguages(),
+	}
+	activeWindow = window
+	defer func() { activeWindow = nil }()
+
+	hr, _, _ := procCoInitializeEx.Call(0, coinitApartmentThreaded)
+	comInitialized := int32(hr) >= 0
+	if comInitialized {
+		defer procCoUninitialize.Call()
+	}
+
+	if err := window.create(); err != nil {
+		showMessage(0, "KCD2 Dual Subtitles", err.Error(), mbOK|mbIconError)
+		return 1
+	}
+	return window.messageLoop()
+}
+
+func (w *nativeWindow) create() error {
+	instance, _, _ := procGetModuleHandleW.Call(0)
+	if instance == 0 {
+		return fmt.Errorf("GetModuleHandleW failed")
+	}
+	className := mustUTF16(windowClassName)
+	cursor, _, _ := procLoadCursorW.Call(0, idcArrow)
+	class := wndClass{
+		WndProc:    syscall.NewCallback(windowProc),
+		Instance:   instance,
+		Cursor:     cursor,
+		Background: colorWindow + 1,
+		ClassName:  className,
+	}
+	atom, _, registerErr := procRegisterClassW.Call(uintptr(unsafe.Pointer(&class)))
+	if atom == 0 {
+		return fmt.Errorf("RegisterClassW failed: %v", registerErr)
+	}
+
+	title := mustUTF16(fmt.Sprintf("KCD2 Dual Subtitles %s", w.version))
+	hwnd, _, createErr := procCreateWindowExW.Call(
+		0,
+		uintptr(unsafe.Pointer(className)),
+		uintptr(unsafe.Pointer(title)),
+		wsCaption|wsSysMenu|wsMinimizeBox,
+		180,
+		120,
+		660,
+		360,
+		0,
+		0,
+		instance,
+		0,
+	)
+	if hwnd == 0 {
+		if w.startupErr != nil {
+			return w.startupErr
+		}
+		return fmt.Errorf("CreateWindowExW failed: %v", createErr)
+	}
+	w.hwnd = hwnd
+	procShowWindowGUI.Call(hwnd, swShow)
+	procUpdateWindowGUI.Call(hwnd)
+	return nil
+}
+
+func (w *nativeWindow) createControls(hwnd uintptr) error {
+	w.hwnd = hwnd
+	w.font, _, _ = procGetStockObject.Call(defaultGUIFont)
+
+	if _, err := w.createControl("STATIC", "Game folder", wsChild|wsVisible, 20, 20, 120, 22, 0); err != nil {
+		return err
+	}
+	gameEdit, err := w.createControl("EDIT", w.model.GameRoot, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 20, 46, 490, 26, 0)
+	if err != nil {
+		return err
+	}
+	w.gameEdit = gameEdit
+	browse, err := w.createControl("BUTTON", "Browse...", wsChild|wsVisible|wsTabStop, 520, 45, 105, 28, idBrowseButton)
+	if err != nil {
+		return err
+	}
+	_ = browse
+
+	if _, err := w.createControl("STATIC", "Main language", wsChild|wsVisible, 20, 98, 135, 22, 0); err != nil {
+		return err
+	}
+	mainCombo, err := w.createControl("COMBOBOX", "", wsChild|wsVisible|wsTabStop|wsVScroll|cbsDropdownList, 165, 94, 190, 200, 0)
+	if err != nil {
+		return err
+	}
+	w.mainCombo = mainCombo
+
+	if _, err := w.createControl("STATIC", "Secondary language", wsChild|wsVisible, 20, 136, 135, 22, 0); err != nil {
+		return err
+	}
+	secondaryCombo, err := w.createControl("COMBOBOX", "", wsChild|wsVisible|wsTabStop|wsVScroll|cbsDropdownList, 165, 132, 190, 200, 0)
+	if err != nil {
+		return err
+	}
+	w.secondaryCombo = secondaryCombo
+
+	for i, info := range w.languages {
+		text := mustUTF16(string(info.Language))
+		procSendMessageW.Call(w.mainCombo, cbAddString, 0, uintptr(unsafe.Pointer(text)))
+		procSendMessageW.Call(w.secondaryCombo, cbAddString, 0, uintptr(unsafe.Pointer(text)))
+		if info.Language == localization.Russian {
+			procSendMessageW.Call(w.mainCombo, cbSetCurSel, uintptr(i), 0)
+		}
+		if info.Language == localization.English {
+			procSendMessageW.Call(w.secondaryCombo, cbSetCurSel, uintptr(i), 0)
+		}
+	}
+
+	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 20, 185, 190, 34, idGenerateButton)
+	if err != nil {
+		return err
+	}
+	w.generateButton = generate
+	uninstall, err := w.createControl("BUTTON", "Uninstall", wsChild|wsVisible|wsTabStop, 225, 185, 120, 34, idUninstallButton)
+	if err != nil {
+		return err
+	}
+	w.uninstallButton = uninstall
+	w.enable(w.uninstallButton, w.model.InstallationKnown && w.model.Installed)
+
+	status, err := w.createControl("STATIC", w.model.Status, wsChild|wsVisible, 20, 242, 605, 62, 0)
+	if err != nil {
+		return err
+	}
+	w.statusLabel = status
+	return nil
+}
+
+func (w *nativeWindow) createControl(className, text string, style uint32, x, y, width, height int32, id uintptr) (uintptr, error) {
+	classPtr := mustUTF16(className)
+	textPtr := mustUTF16(text)
+	hwnd, _, callErr := procCreateWindowExW.Call(
+		0,
+		uintptr(unsafe.Pointer(classPtr)),
+		uintptr(unsafe.Pointer(textPtr)),
+		uintptr(style),
+		uintptr(x),
+		uintptr(y),
+		uintptr(width),
+		uintptr(height),
+		w.hwnd,
+		id,
+		0,
+		0,
+	)
+	if hwnd == 0 {
+		return 0, fmt.Errorf("create %s control: %v", className, callErr)
+	}
+	if w.font != 0 {
+		procSendMessageW.Call(hwnd, wmSetFont, w.font, 1)
+	}
+	return hwnd, nil
+}
+
+func (w *nativeWindow) messageLoop() int {
+	var msg message
+	for {
+		result, _, _ := procGetMessageW.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
+		if int32(result) == -1 {
+			showMessage(w.hwnd, "KCD2 Dual Subtitles", "Windows message loop failed.", mbOK|mbIconError)
+			return 1
+		}
+		if result == 0 {
+			return 0
+		}
+		procTranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
+		procDispatchMessageW.Call(uintptr(unsafe.Pointer(&msg)))
+	}
+}
+
+func windowProc(hwnd uintptr, message uint32, wParam, lParam uintptr) uintptr {
+	window := activeWindow
+	if window != nil {
+		switch message {
+		case wmCreate:
+			if err := window.createControls(hwnd); err != nil {
+				window.startupErr = err
+				return ^uintptr(0)
+			}
+			return 0
+		case wmCommand:
+			window.handleCommand(uint16(wParam & 0xffff))
+			return 0
+		case wmDestroy:
+			procPostQuitMessage.Call(0)
+			return 0
+		}
+	}
+	result, _, _ := procDefWindowProcW.Call(hwnd, uintptr(message), wParam, lParam)
+	return result
+}
+
+func (w *nativeWindow) handleCommand(id uint16) {
+	switch id {
+	case idBrowseButton:
+		w.browse()
+	case idGenerateButton:
+		w.generateAndInstall()
+	case idUninstallButton:
+		w.uninstall()
+	}
+}
+
+func (w *nativeWindow) browse() {
+	selected, ok := browseForFolder(w.hwnd)
+	if !ok {
+		return
+	}
+	normalized, err := w.service.ValidateGameRoot(selected)
+	if err != nil {
+		w.setStatus("Selected folder is not a supported KCD2 installation.")
+		showMessage(w.hwnd, "Invalid game folder", err.Error(), mbOK|mbIconError)
+		return
+	}
+	w.setText(w.gameEdit, normalized)
+	w.model.GameRoot = normalized
+	w.model.AutoDetected = false
+	w.setStatus("Game folder selected. Ready to generate and install.")
+}
+
+func (w *nativeWindow) generateAndInstall() {
+	gameRoot := w.text(w.gameEdit)
+	normalized, err := w.service.ValidateGameRoot(gameRoot)
+	if err != nil {
+		w.setStatus("Choose a valid KCD2 game folder first.")
+		showMessage(w.hwnd, "Invalid game folder", err.Error(), mbOK|mbIconError)
+		return
+	}
+	w.setText(w.gameEdit, normalized)
+
+	main, ok := w.selectedLanguage(w.mainCombo)
+	if !ok {
+		showMessage(w.hwnd, "Language selection", "Select a main language.", mbOK|mbIconError)
+		return
+	}
+	secondary, ok := w.selectedLanguage(w.secondaryCombo)
+	if !ok {
+		showMessage(w.hwnd, "Language selection", "Select a secondary language.", mbOK|mbIconError)
+		return
+	}
+	if main == secondary {
+		w.setStatus("Main and secondary languages must differ.")
+		showMessage(w.hwnd, "Language selection", application.ErrSameLanguage.Error(), mbOK|mbIconError)
+		return
+	}
+
+	w.setBusy(true)
+	w.setStatus("Generating and installing bilingual subtitle patch...")
+	result, err := w.service.GenerateAndInstall(normalized, main, secondary)
+	w.setBusy(false)
+	if err != nil {
+		w.setStatus("Generation failed. No successful replacement was published.")
+		showMessage(w.hwnd, "Generation failed", err.Error(), mbOK|mbIconError)
+		return
+	}
+
+	w.model.GameRoot = normalized
+	w.model.Installed = true
+	w.model.InstallationKnown = true
+	w.model.InstallPath = result.InstallPath
+	w.setText(w.generateButton, w.model.GenerateButtonLabel())
+	w.enable(w.uninstallButton, true)
+	w.setStatus(fmt.Sprintf("Installed successfully. Bilingual rows: %d; patch rows: %d.", result.Stats.Bilingual, result.PatchRows))
+}
+
+func (w *nativeWindow) uninstall() {
+	answer := showMessage(
+		w.hwnd,
+		"Uninstall KCD2 Dual Subtitles",
+		"Remove the generated KCD2 Dual Subtitles mod and its mod_order.txt entry? Other mods will not be changed.",
+		mbYesNo|mbIconQuestion,
+	)
+	if answer != idYes {
+		return
+	}
+
+	w.setBusy(true)
+	w.setStatus("Uninstalling...")
+	result, err := w.service.Uninstall()
+	w.setBusy(false)
+	if err != nil {
+		w.setStatus("Uninstall failed.")
+		showMessage(w.hwnd, "Uninstall failed", err.Error(), mbOK|mbIconError)
+		return
+	}
+
+	w.model.Installed = false
+	w.model.InstallationKnown = true
+	w.model.InstallPath = result.Path
+	w.setText(w.generateButton, w.model.GenerateButtonLabel())
+	w.enable(w.uninstallButton, false)
+	if result.RemovedMod || result.UpdatedModOrder {
+		w.setStatus("KCD2 Dual Subtitles was uninstalled.")
+	} else {
+		w.setStatus("KCD2 Dual Subtitles is already uninstalled.")
+	}
+}
+
+func (w *nativeWindow) selectedLanguage(combo uintptr) (localization.Language, bool) {
+	selected, _, _ := procSendMessageW.Call(combo, cbGetCurSel, 0, 0)
+	index := int(selected)
+	if index < 0 || index >= len(w.languages) {
+		return "", false
+	}
+	return w.languages[index].Language, true
+}
+
+func (w *nativeWindow) setBusy(busy bool) {
+	enabled := !busy
+	w.enable(w.gameEdit, enabled)
+	w.enable(w.mainCombo, enabled)
+	w.enable(w.secondaryCombo, enabled)
+	w.enable(w.generateButton, enabled)
+	w.enable(w.uninstallButton, enabled && w.model.InstallationKnown && w.model.Installed)
+}
+
+func (w *nativeWindow) setStatus(status string) {
+	w.model.Status = status
+	w.setText(w.statusLabel, status)
+	if w.statusLabel != 0 {
+		procUpdateWindowGUI.Call(w.statusLabel)
+	}
+}
+
+func (w *nativeWindow) setText(hwnd uintptr, value string) {
+	if hwnd == 0 {
+		return
+	}
+	ptr := mustUTF16(value)
+	procSetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(ptr)))
+}
+
+func (w *nativeWindow) text(hwnd uintptr) string {
+	length, _, _ := procGetWindowTextLengthW.Call(hwnd)
+	buffer := make([]uint16, int(length)+1)
+	if len(buffer) == 0 {
+		return ""
+	}
+	procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)))
+	return syscall.UTF16ToString(buffer)
+}
+
+func (w *nativeWindow) enable(hwnd uintptr, enabled bool) {
+	value := uintptr(0)
+	if enabled {
+		value = 1
+	}
+	procEnableWindow.Call(hwnd, value)
+}
+
+func browseForFolder(owner uintptr) (string, bool) {
+	var displayName [260]uint16
+	title := mustUTF16("Select the KCD2 Content folder or its immediate parent")
+	info := browseInfo{
+		Owner:       owner,
+		DisplayName: &displayName[0],
+		Title:       title,
+		Flags:       bifReturnOnlyFSDirs | bifEditBox | bifNewDialogStyle,
+	}
+	pidl, _, _ := procSHBrowseForFolderW.Call(uintptr(unsafe.Pointer(&info)))
+	if pidl == 0 {
+		return "", false
+	}
+	defer procCoTaskMemFree.Call(pidl)
+
+	var path [260]uint16
+	ok, _, _ := procSHGetPathFromIDListW.Call(pidl, uintptr(unsafe.Pointer(&path[0])))
+	if ok == 0 {
+		return "", false
+	}
+	return syscall.UTF16ToString(path[:]), true
+}
+
+func showMessage(owner uintptr, title, text string, flags uintptr) int {
+	titlePtr := mustUTF16(title)
+	textPtr := mustUTF16(text)
+	result, _, _ := procMessageBoxW.Call(
+		owner,
+		uintptr(unsafe.Pointer(textPtr)),
+		uintptr(unsafe.Pointer(titlePtr)),
+		flags,
+	)
+	return int(result)
+}
+
+func mustUTF16(value string) *uint16 {
+	ptr, err := syscall.UTF16PtrFromString(value)
+	if err != nil {
+		panic(err)
+	}
+	return ptr
+}

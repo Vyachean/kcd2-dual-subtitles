@@ -94,6 +94,46 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           go build -trimpath -o dist/kcd2-dual-subtitles.exe ./cmd/kcd2-dual-subtitles
 
+      - name: Smoke-test native GUI entrypoint
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ".\dist\kcd2-dual-subtitles.exe" -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(10)
+            $title = ""
+            do {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "GUI process exited before creating a window (exit code $($process.ExitCode))"
+              }
+              $title = $process.MainWindowTitle
+            } while ([string]::IsNullOrWhiteSpace($title) -and (Get-Date) -lt $deadline)
+
+            if ($title -notlike "KCD2 Dual Subtitles*") {
+              throw "Native GUI window was not observed; title='$title'"
+            }
+          }
+          finally {
+            $process.Refresh()
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+              $process.WaitForExit()
+            }
+          }
+
+      - name: Smoke-test CLI entrypoint
+        shell: pwsh
+        run: |
+          $version = (& .\dist\kcd2-dual-subtitles.exe --version).Trim()
+          if ($version -ne "kcd2-dual-subtitles dev") {
+            throw "Unexpected --version output: '$version'"
+          }
+          $help = (& .\dist\kcd2-dual-subtitles.exe --help) -join "`n"
+          if ($help -notmatch "Usage:") {
+            throw "--help did not produce CLI usage output"
+          }
+
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
