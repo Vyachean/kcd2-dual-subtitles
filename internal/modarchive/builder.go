@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"hash/crc32"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -13,6 +15,9 @@ import (
 
 const (
 	ManifestFilename = "mod.manifest"
+
+	// KCD2 recognizes localization patch resources named text_ui__<modid>.xml.
+	LocalizationPatchArchivePath = "text_ui__" + ModID + ".xml"
 
 	// ZIP's legacy MS-DOS date representation of 1980-01-01. We deliberately
 	// leave FileHeader.Modified zero so Go does not emit extended timestamp
@@ -31,11 +36,18 @@ type archiveEntry struct {
 	data []byte
 }
 
-// Build writes a directly installable KCD2 mod distribution ZIP to outputPath.
-// Extracting it into the platform's KCD2 mod directory creates the ModID folder.
-// outputPath must not already exist.
+// Build writes a development-version mod archive. Production callers should
+// use BuildVersioned so the generated manifest identifies the executable that
+// created it.
 func Build(outputPath string, mainLanguage localization.Language, rows []localization.DialogueRow) error {
-	archiveData, err := buildArchiveBytes(mainLanguage, rows)
+	return BuildVersioned(outputPath, mainLanguage, rows, "dev")
+}
+
+// BuildVersioned writes a directly installable KCD2 mod distribution ZIP to
+// outputPath. Extracting it into the platform's KCD2 mod directory creates the
+// ModID folder. outputPath must not already exist.
+func BuildVersioned(outputPath string, mainLanguage localization.Language, rows []localization.DialogueRow, version string) error {
+	archiveData, err := buildArchiveBytesVersioned(mainLanguage, rows, version)
 	if err != nil {
 		return err
 	}
@@ -44,6 +56,10 @@ func Build(outputPath string, mainLanguage localization.Language, rows []localiz
 }
 
 func buildArchiveBytes(mainLanguage localization.Language, rows []localization.DialogueRow) ([]byte, error) {
+	return buildArchiveBytesVersioned(mainLanguage, rows, "dev")
+}
+
+func buildArchiveBytesVersioned(mainLanguage localization.Language, rows []localization.DialogueRow, version string) ([]byte, error) {
 	languageInfo, ok := localization.LookupLanguage(mainLanguage)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", ErrUnsupportedLanguage, mainLanguage)
@@ -55,29 +71,68 @@ func buildArchiveBytes(mainLanguage localization.Language, rows []localization.D
 	}
 
 	return buildZip([]archiveEntry{
-		{name: modArchivePath(ManifestFilename), data: []byte(manifest)},
+		{name: modArchivePath(ManifestFilename), data: manifestForVersion(version)},
 		{name: modArchivePath(filepath.ToSlash(filepath.Join("Localization", languageInfo.PakFilename))), data: localizationPAK},
 	}, zip.Deflate)
 }
 
 func buildLocalizationPAK(rows []localization.DialogueRow) ([]byte, error) {
-	dialogueXML, err := localization.MarshalDialogueXML(rows)
+	patchXML, err := localization.MarshalDialogueXML(rows)
 	if err != nil {
 		return nil, err
 	}
 
-	// We modify existing base-game dialogue IDs, so the generated resource must
-	// use the same internal path as the base localization PAK in order to
-	// override text_ui_dialog.xml when the mod is loaded.
-	//
-	// Store is the conservative PAK format documented by the official KCD2 wiki.
-	return buildZip([]archiveEntry{
-		{name: localization.DialogueXMLArchivePath, data: dialogueXML},
-	}, zip.Store)
+	// Current KCD2 localization mods patch existing string IDs through a
+	// text_ui__<modid>.xml resource. Use a raw Store ZIP entry with precomputed
+	// CRC/sizes so local and central headers agree and no data descriptor or ZIP
+	// extra fields are required by the game-facing PAK.
+	return buildCryPak([]archiveEntry{
+		{name: LocalizationPatchArchivePath, data: patchXML},
+	})
 }
 
 func modArchivePath(relativePath string) string {
 	return filepath.ToSlash(filepath.Join(ModID, relativePath))
+}
+
+func buildCryPak(entries []archiveEntry) ([]byte, error) {
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+
+	for _, entry := range entries {
+		if uint64(len(entry.data)) > math.MaxUint32 {
+			_ = writer.Close()
+			return nil, fmt.Errorf("CryPak entry %q exceeds 32-bit ZIP size limit", entry.name)
+		}
+		size := uint32(len(entry.data))
+		header := &zip.FileHeader{
+			Name:               entry.name,
+			Method:             zip.Store,
+			Flags:              0,
+			CRC32:              crc32.ChecksumIEEE(entry.data),
+			CompressedSize:     size,
+			UncompressedSize:   size,
+			CompressedSize64:   uint64(size),
+			UncompressedSize64: uint64(size),
+			ModifiedTime:       deterministicDOSTime,
+			ModifiedDate:       deterministicDOSDate,
+		}
+
+		entryWriter, err := writer.CreateRaw(header)
+		if err != nil {
+			_ = writer.Close()
+			return nil, fmt.Errorf("create CryPak entry %q: %w", entry.name, err)
+		}
+		if _, err := entryWriter.Write(entry.data); err != nil {
+			_ = writer.Close()
+			return nil, fmt.Errorf("write CryPak entry %q: %w", entry.name, err)
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("close CryPak archive: %w", err)
+	}
+	return buffer.Bytes(), nil
 }
 
 func buildZip(entries []archiveEntry, method uint16) ([]byte, error) {

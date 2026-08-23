@@ -11,9 +11,16 @@ import (
 
 var ErrDirectoryNotEmpty = errors.New("mod output directory is not empty")
 
-// WriteDirectory writes one complete mod tree into an existing empty directory.
-// It is intended for an isolated staging directory managed by the installer.
+// WriteDirectory writes a development-version mod tree. Production callers
+// should use WriteDirectoryVersioned.
 func WriteDirectory(directory string, mainLanguage localization.Language, rows []localization.DialogueRow) error {
+	return WriteDirectoryVersioned(directory, mainLanguage, rows, "dev")
+}
+
+// WriteDirectoryVersioned writes one complete mod tree into an existing empty
+// directory. It is intended for an isolated staging directory managed by the
+// installer.
+func WriteDirectoryVersioned(directory string, mainLanguage localization.Language, rows []localization.DialogueRow, version string) error {
 	info, err := os.Stat(directory)
 	if err != nil {
 		return fmt.Errorf("inspect mod output directory %q: %w", directory, err)
@@ -43,7 +50,7 @@ func WriteDirectory(directory string, mainLanguage localization.Language, rows [
 	if err := os.Mkdir(localizationDir, 0o755); err != nil {
 		return fmt.Errorf("create localization directory %q: %w", localizationDir, err)
 	}
-	if err := os.WriteFile(filepath.Join(directory, ManifestFilename), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(directory, ManifestFilename), manifestForVersion(version), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", ManifestFilename, err)
 	}
 	pakPath := filepath.Join(localizationDir, languageInfo.PakFilename)

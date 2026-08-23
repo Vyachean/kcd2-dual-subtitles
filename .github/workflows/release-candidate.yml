@@ -81,9 +81,16 @@ jobs:
           go-version: '1.27.x'
           cache: false
 
-      - name: Run Windows tests
+      - name: Run Windows tests with release identity
         shell: pwsh
-        run: go test ./...
+        env:
+          RC_BRANCH: ${{ github.event.ref }}
+        run: |
+          if ($env:RC_BRANCH -notmatch '^release-candidate/(v\d+\.\d+\.\d+-rc\.\d+)$') {
+            throw "Invalid release-candidate branch: $env:RC_BRANCH"
+          }
+          $env:KCD2DS_EXPECTED_VERSION = $Matches[1]
+          go test ./...
 
       - name: Build versioned Windows executable
         shell: pwsh
@@ -166,6 +173,7 @@ jobs:
           Release candidate for Xbox Store acceptance testing.
 
           - Built and tested entirely by GitHub Actions, including native Windows tests.
+          - Generated manifests carry the same RC version as the executable.
           - Source commit: $GITHUB_SHA
           - This is a prerelease; in-game acceptance is not complete yet.
           EOF

@@ -49,7 +49,7 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 				"<name>KCD2 Dual Subtitles</name>",
 				"<modid>kcd_dual_subtitles</modid>",
 				"<author>Vyachean</author>",
-				"<version>0.1.0</version>",
+				"<version>dev</version>",
 				"<created_on>2026-08-23</created_on>",
 			} {
 				if !strings.Contains(manifestText, want) {
@@ -59,8 +59,8 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 
 			pakData := readZipEntry(t, outer, tt.wantPAKArchive)
 			nested := openZipBytes(t, pakData)
-			if got := zipNames(nested); !reflect.DeepEqual(got, []string{localization.DialogueXMLArchivePath}) {
-				t.Fatalf("nested PAK entries = %#v, want [%q]", got, localization.DialogueXMLArchivePath)
+			if got := zipNames(nested); !reflect.DeepEqual(got, []string{LocalizationPatchArchivePath}) {
+				t.Fatalf("nested PAK entries = %#v, want [%q]", got, LocalizationPatchArchivePath)
 			}
 			if len(nested.File) != 1 {
 				t.Fatalf("nested PAK entries = %d, want 1", len(nested.File))
@@ -69,6 +69,9 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 			if entry.Method != zip.Store {
 				t.Fatalf("nested PAK compression = %d, want zip.Store (%d)", entry.Method, zip.Store)
 			}
+			if entry.Flags&0x8 != 0 {
+				t.Fatalf("nested PAK uses ZIP data descriptor flag: flags=%#x", entry.Flags)
+			}
 			if len(entry.Extra) != 0 {
 				t.Fatalf("nested PAK entry has ZIP extra fields: %x", entry.Extra)
 			}
@@ -76,10 +79,10 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 				t.Fatalf("nested PAK DOS timestamp = date:%d time:%d, want date:%d time:%d", entry.ModifiedDate, entry.ModifiedTime, deterministicDOSDate, deterministicDOSTime)
 			}
 
-			xmlData := readZipEntry(t, nested, localization.DialogueXMLArchivePath)
+			xmlData := readZipEntry(t, nested, LocalizationPatchArchivePath)
 			parsed, err := localization.ParseDialogueXML(xmlData)
 			if err != nil {
-				t.Fatalf("parse generated dialogue XML: %v", err)
+				t.Fatalf("parse generated dialogue patch XML: %v", err)
 			}
 			if !reflect.DeepEqual(parsed, rows) {
 				t.Fatalf("generated dialogue rows = %#v, want %#v", parsed, rows)
@@ -88,7 +91,7 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 	}
 }
 
-func TestGeneratedPathsMatchOverrideContract(t *testing.T) {
+func TestGeneratedPathsMatchPatchContract(t *testing.T) {
 	if ModID != "kcd_dual_subtitles" {
 		t.Fatalf("ModID = %q, want kcd_dual_subtitles", ModID)
 	}
@@ -97,6 +100,21 @@ func TestGeneratedPathsMatchOverrideContract(t *testing.T) {
 	}
 	if localization.DialogueXMLArchivePath != "text_ui_dialog.xml" {
 		t.Fatalf("DialogueXMLArchivePath = %q, want text_ui_dialog.xml", localization.DialogueXMLArchivePath)
+	}
+	if LocalizationPatchArchivePath != "text_ui__kcd_dual_subtitles.xml" {
+		t.Fatalf("LocalizationPatchArchivePath = %q, want text_ui__kcd_dual_subtitles.xml", LocalizationPatchArchivePath)
+	}
+}
+
+func TestManifestUsesRequestedVersion(t *testing.T) {
+	archiveData, err := buildArchiveBytesVersioned(localization.Russian, []localization.DialogueRow{{ID: "id", Text: "text"}}, "v0.1.0-rc.4")
+	if err != nil {
+		t.Fatalf("buildArchiveBytesVersioned() error = %v", err)
+	}
+	outer := openZipBytes(t, archiveData)
+	manifestText := string(readZipEntry(t, outer, modArchivePath(ManifestFilename)))
+	if !strings.Contains(manifestText, "<version>v0.1.0-rc.4</version>") {
+		t.Fatalf("manifest version does not match requested build version:\n%s", manifestText)
 	}
 }
 
