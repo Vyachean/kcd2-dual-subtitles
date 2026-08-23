@@ -36,16 +36,18 @@ func TestMergeDialogueRows(t *testing.T) {
 		{ID: "first", Source: "main-source-1", Text: "Основной\\nSecondary"},
 		{ID: "identical", Source: "main-source-2", Text: "[pause]"},
 		{ID: "missing", Source: "main-source-3", Text: "Только основной"},
-		{ID: "empty-main", Source: "main-source-4", Text: "\\nSecondary only text"},
-		{ID: "empty-secondary", Source: "main-source-5", Text: "Основной текст\\n"},
+		{ID: "empty-main", Source: "main-source-4", Text: "Secondary only text"},
+		{ID: "empty-secondary", Source: "main-source-5", Text: "Основной текст"},
 		{ID: "both-empty", Source: "main-source-6", Text: ""},
 	}
 	wantStats := MergeStats{
-		Processed:        6,
-		Bilingual:        3,
-		Identical:        2,
-		MissingSecondary: 1,
-		SecondaryOnly:    1,
+		Processed:              6,
+		Bilingual:              1,
+		Identical:              2,
+		MissingSecondary:       1,
+		MainEmptyFallback:      1,
+		SecondaryEmptyFallback: 1,
+		SecondaryOnly:          1,
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -84,6 +86,37 @@ func TestMergeDialogueRowsUsesLiteralGameSeparator(t *testing.T) {
 	}
 	if strings.ContainsRune(rows[0].Text, '\n') {
 		t.Fatalf("merged text contains a real newline: %q", rows[0].Text)
+	}
+}
+
+func TestMergeDialogueRowsDoesNotAddSeparatorForEmptySide(t *testing.T) {
+	tests := []struct {
+		name      string
+		mainText  string
+		secondary string
+		want      string
+	}{
+		{name: "empty main", mainText: "", secondary: "secondary", want: "secondary"},
+		{name: "empty secondary", mainText: "main", secondary: "", want: "main"},
+		{name: "both empty", mainText: "", secondary: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows, _, err := MergeDialogueRows(
+				[]DialogueRow{{ID: "id", Text: tt.mainText}},
+				[]DialogueRow{{ID: "id", Text: tt.secondary}},
+			)
+			if err != nil {
+				t.Fatalf("MergeDialogueRows() error = %v", err)
+			}
+			if rows[0].Text != tt.want {
+				t.Fatalf("merged text = %q, want %q", rows[0].Text, tt.want)
+			}
+			if strings.HasPrefix(rows[0].Text, BilingualSeparator) || strings.HasSuffix(rows[0].Text, BilingualSeparator) {
+				t.Fatalf("merged text has dangling separator: %q", rows[0].Text)
+			}
+		})
 	}
 }
 
