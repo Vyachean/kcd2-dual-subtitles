@@ -19,11 +19,13 @@ var ErrInvalidRequest = errors.New("invalid generation request")
 // Request describes one end-to-end mod generation operation. An empty
 // OutputPath selects automatic installation; a non-empty OutputPath writes a
 // portable mod ZIP instead. CanaryID enables an explicit acceptance-only
-// marker on one existing localization row.
+// marker on one existing localization row. An empty SubtitleStyle keeps the
+// accepted tagged format for backward compatibility.
 type Request struct {
 	GameRoot          string
 	MainLanguage      localization.Language
 	SecondaryLanguage localization.Language
+	SubtitleStyle     SubtitleStyle
 	OutputPath        string
 	Version           string
 	CanaryID          string
@@ -31,11 +33,12 @@ type Request struct {
 
 // Result describes a successfully generated mod destination.
 type Result struct {
-	OutputPath  string
-	InstallPath string
-	Stats       localization.MergeStats
-	PatchRows   int
-	CanaryID    string
+	OutputPath    string
+	InstallPath   string
+	Stats         localization.MergeStats
+	PatchRows     int
+	CanaryID      string
+	SubtitleStyle SubtitleStyle
 }
 
 // Generate reads two installed localization PAKs, merges their dialogue rows,
@@ -44,6 +47,10 @@ type Result struct {
 // modifies base-game files.
 func Generate(request Request) (Result, error) {
 	mainInfo, secondaryInfo, err := validateRequest(request)
+	if err != nil {
+		return Result{}, err
+	}
+	style, err := normalizeSubtitleStyle(request.SubtitleStyle)
 	if err != nil {
 		return Result{}, err
 	}
@@ -80,7 +87,7 @@ func Generate(request Request) (Result, error) {
 		return Result{}, fmt.Errorf("parse secondary language %s: %w", request.SecondaryLanguage, err)
 	}
 
-	mergedRows, stats, err := localization.MergeDialogueRowsTagged(mainRows, secondaryRows, mainInfo.SubtitleTag, secondaryInfo.SubtitleTag)
+	mergedRows, stats, err := mergeRowsForStyle(style, mainRows, secondaryRows, mainInfo.SubtitleTag, secondaryInfo.SubtitleTag)
 	if err != nil {
 		return Result{}, fmt.Errorf("merge dialogue rows: %w", err)
 	}
@@ -96,9 +103,10 @@ func Generate(request Request) (Result, error) {
 	}
 
 	result := Result{
-		Stats:     stats,
-		PatchRows: len(patchRows),
-		CanaryID:  strings.TrimSpace(request.CanaryID),
+		Stats:         stats,
+		PatchRows:     len(patchRows),
+		CanaryID:      strings.TrimSpace(request.CanaryID),
+		SubtitleStyle: style,
 	}
 	if request.OutputPath != "" {
 		if err := modarchive.BuildVersioned(request.OutputPath, request.MainLanguage, patchRows, version); err != nil {
@@ -114,6 +122,17 @@ func Generate(request Request) (Result, error) {
 	}
 	result.InstallPath = installPath
 	return result, nil
+}
+
+func mergeRowsForStyle(style SubtitleStyle, mainRows, secondaryRows []localization.DialogueRow, mainTag, secondaryTag string) ([]localization.DialogueRow, localization.MergeStats, error) {
+	switch style {
+	case SubtitleStyleTagged:
+		return localization.MergeDialogueRowsTagged(mainRows, secondaryRows, mainTag, secondaryTag)
+	case SubtitleStyleDifferentiated:
+		return localization.MergeDialogueRowsDifferentiated(mainRows, secondaryRows, mainTag, secondaryTag)
+	default:
+		return nil, localization.MergeStats{}, fmt.Errorf("%w: unsupported subtitle style %q", ErrInvalidRequest, style)
+	}
 }
 
 func changedRows(baseRows, mergedRows []localization.DialogueRow, canaryID string) ([]localization.DialogueRow, error) {
