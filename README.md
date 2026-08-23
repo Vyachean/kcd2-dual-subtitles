@@ -1,10 +1,10 @@
 # KCD2 Dual Subtitles
 
-A lightweight Windows CLI that generates and installs bilingual dialogue subtitles for Kingdom Come: Deliverance II from the localization files already installed with the game.
+A lightweight Windows tool that generates and installs bilingual dialogue subtitles for Kingdom Come: Deliverance II from localization files already installed with the game.
 
-## v0.1.0 status
+## Status
 
-Validated in the retail **Kingdom Come: Deliverance II 1.5.6 Xbox / Microsoft Store PC build**.
+Stable `v0.1.0` was validated in the retail **Kingdom Come: Deliverance II 1.5.6 Xbox / Microsoft Store PC build**.
 
 Confirmed in live testing:
 
@@ -15,11 +15,13 @@ Confirmed in live testing:
 - the generated CryPak produces no observed CryPak/XML/localization errors;
 - automatic installation works with a redirected OneDrive Documents folder and an existing `mod_order.txt`.
 
-Steam, GOG, and Epic have not yet been live-validated. The input layout may work when their `Localization/*_xml.pak` files match the supported format, but v0.1.0 only claims the Xbox / Microsoft Store PC build above.
+`v0.2` adds a native Windows GUI, Xbox / Microsoft Store game autodetection, regeneration and safe uninstall. The new GUI/autodetection flow remains release-candidate functionality until it is manually exercised on the validated Xbox environment.
+
+Steam, GOG, and Epic have not yet been live-validated and are not automatically detected.
 
 ## Subtitle format
 
-Bilingual rows are labeled so the languages are easier to distinguish:
+Bilingual rows are labeled so the languages are easy to distinguish:
 
 ```text
 [RU] Русский текст
@@ -35,32 +37,47 @@ If English is selected as the main language, the order is reversed:
 
 Identical translations and single-language fallback rows remain untagged.
 
-v0.1.0 supports **Russian** and **English**.
+Russian and English are currently supported.
 
-## Download
+## Normal Windows use
 
-Use the Windows executable from the latest stable GitHub Release:
+Run `kcd2-dual-subtitles.exe` normally or double-click it.
 
-- `kcd2-dual-subtitles.exe`
-- `SHA256SUMS.txt`
+On Windows with no command-line arguments, a small native Win32 window opens. It provides:
 
-The executable is built and tested by GitHub Actions from this public source repository.
+- automatically detected KCD2 game folder when exactly one Xbox / Microsoft Store installation is found;
+- `Browse...` fallback for manual selection;
+- Main language selector;
+- Secondary language selector;
+- `Generate and install` / `Regenerate`;
+- `Uninstall`;
+- operation status and errors.
 
-## Generate and install
+The default selections are Russian main + English secondary. The application does not infer or automatically swap languages; the two selections must differ.
 
-The default languages are Russian main + English secondary.
+### Xbox / Microsoft Store autodetection
+
+Current Microsoft GDK flat-file games are searched in Xbox game roots on fixed Windows drives. The detector checks the default `<drive>:\XboxGames` root and best-effort custom roots recorded by `.GamingRoot`.
+
+Only immediate game directories are inspected; the application does not recursively search whole disks. A candidate is accepted only when the expected KCD2 structure is present, including the supported localization PAKs and core Data PAKs.
+
+If no unique installation can be determined, choose the game folder manually. `Browse...` accepts either:
 
 ```text
-kcd2-dual-subtitles.exe generate --game "C:\path\to\Kingdom Come- Deliverance II\Content"
+...\Kingdom Come- Deliverance II\Content
 ```
 
-Without `--output`, the Windows build automatically installs the generated mod into the real Windows **Documents Known Folder**:
+or its immediate parent directory.
+
+## Generated mod installation
+
+The Windows build installs into the real Windows **Documents Known Folder**:
 
 ```text
 <Documents>\kingdomcome_mods\kcd_dual_subtitles\
 ```
 
-This intentionally does not assume `%USERPROFILE%\Documents`; redirected and OneDrive Documents folders are supported through the Windows Known Folders API.
+Redirected and OneDrive Documents folders are supported through the Windows Known Folders API; the tool does not assume `%USERPROFILE%\Documents`.
 
 The generated mod contains:
 
@@ -72,11 +89,31 @@ kcd_dual_subtitles\
         └── text_ui__kcd_dual_subtitles.xml
 ```
 
-If `Documents\kingdomcome_mods\mod_order.txt` already exists, the installer ensures `kcd_dual_subtitles` is listed exactly once without reordering or deleting unrelated mods. If `mod_order.txt` does not exist, the tool does not create it.
+If `Documents\kingdomcome_mods\mod_order.txt` already exists, installation ensures `kcd_dual_subtitles` is listed without reordering or deleting unrelated mods. If the file does not exist, the tool does not create it.
 
-The installer replaces only its own `kcd_dual_subtitles` directory and does not modify the game's original localization PAKs.
+The original game localization PAKs are never modified.
 
-## Language order
+## Regenerate after game updates
+
+The generator reads the currently installed localization files every time it runs. After KCD2 updates localization data, open the application and use `Regenerate` to rebuild the patch from the current PAKs.
+
+Replacement is staged so a failed generation does not publish a partial new mod.
+
+## Uninstall
+
+Use the GUI `Uninstall` button.
+
+It removes only:
+
+```text
+<Documents>\kingdomcome_mods\kcd_dual_subtitles
+```
+
+and removes only `kcd_dual_subtitles` entries from an existing `mod_order.txt`. Other mod entries and their order are preserved. The tool does not create `mod_order.txt` during uninstall.
+
+## CLI
+
+The existing CLI remains available for scripting, portable ZIP generation and diagnostics.
 
 Russian first, English second:
 
@@ -90,33 +127,24 @@ English first, Russian second:
 kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary Russian
 ```
 
-The game's currently selected text language should match the generated **main** language so KCD2 opens the corresponding mod localization PAK.
-
-## Portable ZIP mode
-
-To create a ZIP instead of installing automatically:
+Portable ZIP instead of automatic installation:
 
 ```text
 kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --output "kcd2-dual-subtitles.zip"
 ```
 
-The ZIP contains the complete `kcd_dual_subtitles` mod folder.
-
-## Regenerate after game updates
-
-The tool reads the localization files installed with the game each time it runs. After a KCD2 update changes localization data, run the generator again so the patch is rebuilt from the current language PAKs.
-
-Automatic install mode safely replaces the previous generated `kcd_dual_subtitles` folder.
-
-## Uninstall
-
-Remove only:
+Other preserved CLI entrypoints:
 
 ```text
-<Documents>\kingdomcome_mods\kcd_dual_subtitles
+kcd2-dual-subtitles.exe --help
+kcd2-dual-subtitles.exe --version
 ```
 
-If your existing `mod_order.txt` contains `kcd_dual_subtitles`, remove that one line when permanently uninstalling the mod. Do not modify the original game localization PAKs.
+The acceptance-only `--canary-id` option also remains available for controlled localization diagnostics.
+
+## Main language and KCD2 language
+
+The game's currently selected text language should match the generated **main** language so KCD2 opens the corresponding mod localization PAK.
 
 ## Troubleshooting
 
@@ -132,13 +160,11 @@ Do not upload or commit full proprietary game localization files when reporting 
 
 ## Microsoft Defender SmartScreen
 
-The v0.1.0 executable is **not Authenticode-signed**. Windows may therefore show a Microsoft Defender SmartScreen reputation warning such as "Windows protected your PC" / "unrecognized app" for a newly downloaded release executable.
+The executable is currently **not Authenticode-signed**. Windows may therefore show Microsoft Defender SmartScreen reputation warnings for a newly downloaded build.
 
-This project does not attempt to bypass or suppress Windows security checks. To verify the downloaded file, compare its SHA-256 hash with `SHA256SUMS.txt` from the same GitHub Release and inspect the public source/CI history if desired.
+The project does not attempt to bypass Windows security checks. Stable/release-candidate binaries are built by GitHub Actions and published with `SHA256SUMS.txt` so the downloaded file can be verified against the corresponding release.
 
-A future trusted Authenticode code-signing certificate is the appropriate way to improve executable identity/reputation. A self-signed certificate is not presented as a substitute.
-
-If Microsoft Defender Antivirus reports an actual named malware/threat detection instead of the SmartScreen reputation warning above, report the exact detection name and release version. That should be investigated as a separate false-positive/security case rather than solved by disabling protection.
+If Microsoft Defender Antivirus reports an actual named malware/threat detection rather than a SmartScreen reputation warning, report the exact detection name and release version for separate false-positive/security investigation instead of disabling protection.
 
 ## Current limitations
 
@@ -146,12 +172,14 @@ If Microsoft Defender Antivirus reports an actual named malware/threat detection
 - dialogue localization from `text_ui_dialog.xml` only;
 - no bilingual item names, quest text, tutorials, codex, or general UI text;
 - language separation is text-based (`[RU]` / `[EN]`), not a custom Scaleform subtitle UI;
-- Steam/GOG/Epic are not yet live-validated;
-- executable is currently unsigned.
+- Xbox / Microsoft Store is the only live-validated store target;
+- Steam/GOG/Epic autodetection is not implemented;
+- executable is currently unsigned;
+- no application self-update or persistent settings.
 
 ## Development
 
-The project uses Go 1.27 and the standard library wherever practical.
+The project uses Go 1.27 and the standard library wherever practical. The Windows GUI uses Win32 APIs directly and does not require Wails, React, Node or WebView.
 
 All automated acceptance checks, Windows tests, builds, checksums, and release publication run through GitHub Actions. Local test/build results are not used as merge or release acceptance evidence.
 
