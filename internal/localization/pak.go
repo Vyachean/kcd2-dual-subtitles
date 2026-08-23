@@ -10,7 +10,7 @@ import (
 const DialogueXMLArchivePath = "text_ui_dialog.xml"
 
 var (
-	ErrDialogueXMLNotFound = errors.New("dialogue XML not found")
+	ErrDialogueXMLNotFound  = errors.New("dialogue XML not found")
 	ErrDialogueXMLDuplicate = errors.New("duplicate dialogue XML entry")
 )
 
