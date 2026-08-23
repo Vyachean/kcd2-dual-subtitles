@@ -14,11 +14,12 @@ const (
 type LanguageInfo struct {
 	Language    Language
 	PakFilename string
+	SubtitleTag string
 }
 
 var supportedLanguages = []LanguageInfo{
-	{Language: English, PakFilename: "English_xml.pak"},
-	{Language: Russian, PakFilename: "Russian_xml.pak"},
+	{Language: English, PakFilename: "English_xml.pak", SubtitleTag: "EN"},
+	{Language: Russian, PakFilename: "Russian_xml.pak", SubtitleTag: "RU"},
 }
 
 // SupportedLanguages returns the supported languages in stable display order.

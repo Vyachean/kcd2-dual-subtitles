@@ -7,9 +7,10 @@ func TestLookupLanguage(t *testing.T) {
 		name        string
 		language    Language
 		pakFilename string
+		subtitleTag string
 	}{
-		{name: "English", language: English, pakFilename: "English_xml.pak"},
-		{name: "Russian", language: Russian, pakFilename: "Russian_xml.pak"},
+		{name: "English", language: English, pakFilename: "English_xml.pak", subtitleTag: "EN"},
+		{name: "Russian", language: Russian, pakFilename: "Russian_xml.pak", subtitleTag: "RU"},
 	}
 
 	for _, tt := range tests {
@@ -23,6 +24,9 @@ func TestLookupLanguage(t *testing.T) {
 			}
 			if info.PakFilename != tt.pakFilename {
 				t.Fatalf("PakFilename = %q, want %q", info.PakFilename, tt.pakFilename)
+			}
+			if info.SubtitleTag != tt.subtitleTag {
+				t.Fatalf("SubtitleTag = %q, want %q", info.SubtitleTag, tt.subtitleTag)
 			}
 		})
 	}
@@ -68,8 +72,8 @@ func TestParseLanguageRejectsUnsupported(t *testing.T) {
 func TestSupportedLanguagesStableOrderAndCopy(t *testing.T) {
 	got := SupportedLanguages()
 	want := []LanguageInfo{
-		{Language: English, PakFilename: "English_xml.pak"},
-		{Language: Russian, PakFilename: "Russian_xml.pak"},
+		{Language: English, PakFilename: "English_xml.pak", SubtitleTag: "EN"},
+		{Language: Russian, PakFilename: "Russian_xml.pak", SubtitleTag: "RU"},
 	}
 
 	if len(got) != len(want) {
@@ -81,7 +85,7 @@ func TestSupportedLanguagesStableOrderAndCopy(t *testing.T) {
 		}
 	}
 
-	got[0] = LanguageInfo{Language: Language("Changed"), PakFilename: "Changed.pak"}
+	got[0] = LanguageInfo{Language: Language("Changed"), PakFilename: "Changed.pak", SubtitleTag: "XX"}
 	fresh := SupportedLanguages()
 	if fresh[0] != want[0] {
 		t.Fatalf("caller mutation changed supported language registry: got %+v, want %+v", fresh[0], want[0])

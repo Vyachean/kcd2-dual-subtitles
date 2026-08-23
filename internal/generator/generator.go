@@ -80,7 +80,7 @@ func Generate(request Request) (Result, error) {
 		return Result{}, fmt.Errorf("parse secondary language %s: %w", request.SecondaryLanguage, err)
 	}
 
-	mergedRows, stats, err := localization.MergeDialogueRows(mainRows, secondaryRows)
+	mergedRows, stats, err := localization.MergeDialogueRowsTagged(mainRows, secondaryRows, mainInfo.SubtitleTag, secondaryInfo.SubtitleTag)
 	if err != nil {
 		return Result{}, fmt.Errorf("merge dialogue rows: %w", err)
 	}
