@@ -178,6 +178,8 @@ func executeGeneration(request generator.Request, stdout, stderr io.Writer, gene
 	fmt.Fprintf(stdout, "Bilingual: %d\n", result.Stats.Bilingual)
 	fmt.Fprintf(stdout, "Identical: %d\n", result.Stats.Identical)
 	fmt.Fprintf(stdout, "Missing secondary: %d\n", result.Stats.MissingSecondary)
+	fmt.Fprintf(stdout, "Main empty fallback: %d\n", result.Stats.MainEmptyFallback)
+	fmt.Fprintf(stdout, "Secondary empty fallback: %d\n", result.Stats.SecondaryEmptyFallback)
 	fmt.Fprintf(stdout, "Secondary only: %d\n", result.Stats.SecondaryOnly)
 	return ExitSuccess
 }
