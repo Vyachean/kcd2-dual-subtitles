@@ -1,0 +1,4 @@
+# Stage 1 synthetic fixtures intentionally contain literal LF characters inside
+# <Cell> values. Keep those bytes stable across Windows checkouts so the same
+# fixture contract is exercised on every CI platform.
+internal/localization/testdata/*.xml text eol=lf

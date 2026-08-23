@@ -21,7 +21,6 @@ const (
 
 	defaultMainLanguage      = "Russian"
 	defaultSecondaryLanguage = "English"
-	defaultOutputPath        = "kcd2-dual-subtitles.zip"
 )
 
 type generateFunc func(generator.Request) (generator.Result, error)
@@ -57,9 +56,9 @@ func runGenerate(args []string, stdout, stderr io.Writer, generate generateFunc)
 	flags.SetOutput(io.Discard)
 
 	gameRoot := flags.String("game", "", "KCD2 game root containing Localization")
-	mainName := flags.String("main", "", "main subtitle language")
-	secondaryName := flags.String("secondary", "", "secondary subtitle language")
-	outputPath := flags.String("output", "", "output mod ZIP path")
+	mainName := flags.String("main", defaultMainLanguage, "main subtitle language")
+	secondaryName := flags.String("secondary", defaultSecondaryLanguage, "secondary subtitle language")
+	outputPath := flags.String("output", "", "write a portable mod ZIP instead of installing it")
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -75,8 +74,8 @@ func runGenerate(args []string, stdout, stderr io.Writer, generate generateFunc)
 		printGenerateUsage(stderr)
 		return ExitUsage
 	}
-	if strings.TrimSpace(*gameRoot) == "" || strings.TrimSpace(*mainName) == "" || strings.TrimSpace(*secondaryName) == "" || strings.TrimSpace(*outputPath) == "" {
-		fmt.Fprintln(stderr, "error: --game, --main, --secondary, and --output are required")
+	if strings.TrimSpace(*gameRoot) == "" {
+		fmt.Fprintln(stderr, "error: --game is required")
 		fmt.Fprintln(stderr)
 		printGenerateUsage(stderr)
 		return ExitUsage
@@ -134,16 +133,6 @@ func runInteractive(stdin io.Reader, stdout, stderr io.Writer, generate generate
 		secondaryName = defaultSecondaryLanguage
 	}
 
-	outputPath, err := prompt(reader, stdout, "Output path [kcd2-dual-subtitles.zip]: ")
-	if err != nil {
-		fmt.Fprintf(stderr, "error: read output path: %v\n", err)
-		return ExitUsage
-	}
-	outputPath = normalizeInteractivePath(outputPath)
-	if outputPath == "" {
-		outputPath = defaultOutputPath
-	}
-
 	mainLanguage, ok := localization.ParseLanguage(mainName)
 	if !ok {
 		fmt.Fprintf(stderr, "error: unsupported main language %q\n", strings.TrimSpace(mainName))
@@ -159,7 +148,6 @@ func runInteractive(stdin io.Reader, stdout, stderr io.Writer, generate generate
 		GameRoot:          gameRoot,
 		MainLanguage:      mainLanguage,
 		SecondaryLanguage: secondaryLanguage,
-		OutputPath:        outputPath,
 	}, stdout, stderr, generate)
 }
 
@@ -173,7 +161,11 @@ func executeGeneration(request generator.Request, stdout, stderr io.Writer, gene
 		return ExitRuntime
 	}
 
-	fmt.Fprintf(stdout, "Created: %s\n", result.OutputPath)
+	if result.InstallPath != "" {
+		fmt.Fprintf(stdout, "Installed: %s\n", result.InstallPath)
+	} else {
+		fmt.Fprintf(stdout, "Created: %s\n", result.OutputPath)
+	}
 	fmt.Fprintf(stdout, "Processed: %d\n", result.Stats.Processed)
 	fmt.Fprintf(stdout, "Bilingual: %d\n", result.Stats.Bilingual)
 	fmt.Fprintf(stdout, "Identical: %d\n", result.Stats.Identical)
@@ -206,14 +198,17 @@ func normalizeInteractivePath(value string) string {
 
 func printUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> --main <language> --secondary <language> --output <mod.zip>\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] --output <mod.zip>\n", AppName)
 	fmt.Fprintf(output, "  %s --help\n", AppName)
 	fmt.Fprintf(output, "  %s --version\n", AppName)
-	fmt.Fprintf(output, "  %s              # interactive mode\n", AppName)
+	fmt.Fprintf(output, "  %s              # interactive install mode\n", AppName)
 }
 
 func printGenerateUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> --main <language> --secondary <language> --output <mod.zip>\n", AppName)
-	fmt.Fprintf(output, "\nSupported languages: English, Russian\n")
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main Russian] [--secondary English] --output <mod.zip>\n", AppName)
+	fmt.Fprintf(output, "\nWithout --output, the Windows build installs into Documents\\kingdomcome_mods.\n")
+	fmt.Fprintf(output, "Supported languages: English, Russian\n")
 }
