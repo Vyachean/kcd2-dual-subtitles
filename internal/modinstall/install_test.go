@@ -35,8 +35,8 @@ func TestInstallIntoDocumentsCreatesExpectedTree(t *testing.T) {
 		t.Fatalf("open installed localization PAK: %v", err)
 	}
 	defer pak.Close()
-	if len(pak.File) != 1 || pak.File[0].Name != localization.DialogueXMLArchivePath {
-		t.Fatalf("installed PAK entries = %#v, want only %q", pak.File, localization.DialogueXMLArchivePath)
+	if len(pak.File) != 1 || pak.File[0].Name != modarchive.LocalizationPatchArchivePath {
+		t.Fatalf("installed PAK entries = %#v, want only %q", pak.File, modarchive.LocalizationPatchArchivePath)
 	}
 }
 
