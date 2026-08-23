@@ -5,15 +5,16 @@ import (
 	"strings"
 )
 
-// SubtitleStyle controls how a generated bilingual row is presented by the
-// game's existing subtitle TextField. Tagged is the accepted v0.1/v0.2 format;
-// differentiated is an experimental vanilla-HUD HTML style used for v0.3
-// research acceptance.
+// SubtitleStyle controls the generated subtitle presentation contract. Tagged
+// remains the accepted default. Differentiated is the failed localization-only
+// Stage A experiment retained for reproducibility; HUD is the explicit direct-
+// HUD Stage C1 prototype.
 type SubtitleStyle string
 
 const (
 	SubtitleStyleTagged         SubtitleStyle = "tagged"
 	SubtitleStyleDifferentiated SubtitleStyle = "differentiated"
+	SubtitleStyleHUD            SubtitleStyle = "hud"
 )
 
 // ParseSubtitleStyle resolves a user-facing style name case-insensitively.
@@ -23,6 +24,8 @@ func ParseSubtitleStyle(value string) (SubtitleStyle, bool) {
 		return SubtitleStyleTagged, true
 	case string(SubtitleStyleDifferentiated):
 		return SubtitleStyleDifferentiated, true
+	case string(SubtitleStyleHUD):
+		return SubtitleStyleHUD, true
 	default:
 		return "", false
 	}
