@@ -1,5 +1,7 @@
 package localization
 
+import "strings"
+
 // Language identifies a supported KCD2 localization language.
 type Language string
 
@@ -35,4 +37,16 @@ func LookupLanguage(language Language) (LanguageInfo, bool) {
 	}
 
 	return LanguageInfo{}, false
+}
+
+// ParseLanguage resolves a user-facing language name case-insensitively.
+func ParseLanguage(value string) (Language, bool) {
+	value = strings.TrimSpace(value)
+	for _, info := range supportedLanguages {
+		if strings.EqualFold(value, string(info.Language)) {
+			return info.Language, true
+		}
+	}
+
+	return "", false
 }
