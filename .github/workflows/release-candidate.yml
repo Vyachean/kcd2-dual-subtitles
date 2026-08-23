@@ -1,0 +1,176 @@
+name: Release candidate
+
+on:
+  create:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Format
+    if: ${{ github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release-candidate/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.x'
+          cache: false
+
+      - name: Verify gofmt
+        shell: bash
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$files"
+            echo
+            gofmt -d .
+            exit 1
+          fi
+
+  vet:
+    name: Vet
+    if: ${{ github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release-candidate/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.x'
+          cache: false
+
+      - name: Run go vet
+        run: go vet ./...
+
+  test:
+    name: Test
+    if: ${{ github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release-candidate/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.x'
+          cache: false
+
+      - name: Run tests
+        run: go test ./...
+
+  windows-build:
+    name: Windows amd64 build
+    if: ${{ github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release-candidate/v') }}
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.x'
+          cache: false
+
+      - name: Build versioned Windows executable
+        shell: pwsh
+        env:
+          RC_BRANCH: ${{ github.event.ref }}
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: |
+          if ($env:RC_BRANCH -notmatch '^release-candidate/(v\d+\.\d+\.\d+-rc\.\d+)$') {
+            throw "Invalid release-candidate branch: $env:RC_BRANCH"
+          }
+          $tag = $Matches[1]
+
+          New-Item -ItemType Directory -Force dist | Out-Null
+          go build -trimpath -ldflags "-X main.version=$tag" -o dist/kcd2-dual-subtitles.exe ./cmd/kcd2-dual-subtitles
+
+          $reportedVersion = (& .\dist\kcd2-dual-subtitles.exe --version).Trim()
+          $expectedVersion = "kcd2-dual-subtitles $tag"
+          if ($reportedVersion -ne $expectedVersion) {
+            throw "Version mismatch: got '$reportedVersion', want '$expectedVersion'"
+          }
+
+          $hash = (Get-FileHash dist/kcd2-dual-subtitles.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  kcd2-dual-subtitles.exe" | Set-Content -Path dist/SHA256SUMS.txt -Encoding ascii -NoNewline
+
+      - name: Upload release candidate assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-assets
+          path: |
+            dist/kcd2-dual-subtitles.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish prerelease
+    if: ${{ github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release-candidate/v') }}
+    needs:
+      - format
+      - vet
+      - test
+      - windows-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release candidate assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-candidate-assets
+          path: dist
+
+      - name: Validate release candidate name
+        id: release
+        shell: bash
+        env:
+          RC_BRANCH: ${{ github.event.ref }}
+        run: |
+          if [[ ! "$RC_BRANCH" =~ ^release-candidate/(v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+)$ ]]; then
+            echo "Invalid release-candidate branch: $RC_BRANCH" >&2
+            exit 1
+          fi
+          echo "tag=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          RC_BRANCH: ${{ github.event.ref }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists" >&2
+            exit 1
+          fi
+
+          cat > release-notes.md <<EOF
+          Release candidate for Xbox Store acceptance testing.
+
+          - Built and tested entirely by GitHub Actions.
+          - Source commit: $GITHUB_SHA
+          - This is a prerelease; in-game acceptance is not complete yet.
+          EOF
+
+          gh release create "$TAG" \
+            dist/kcd2-dual-subtitles.exe \
+            dist/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RC_BRANCH" \
+            --title "$TAG" \
+            --prerelease \
+            --notes-file release-notes.md
