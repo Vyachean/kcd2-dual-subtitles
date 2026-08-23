@@ -59,8 +59,8 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 
 			pakData := readZipEntry(t, outer, tt.wantPAKArchive)
 			nested := openZipBytes(t, pakData)
-			if got := zipNames(nested); !reflect.DeepEqual(got, []string{GeneratedDialogueXMLArchivePath}) {
-				t.Fatalf("nested PAK entries = %#v, want [%q]", got, GeneratedDialogueXMLArchivePath)
+			if got := zipNames(nested); !reflect.DeepEqual(got, []string{localization.DialogueXMLArchivePath}) {
+				t.Fatalf("nested PAK entries = %#v, want [%q]", got, localization.DialogueXMLArchivePath)
 			}
 			if len(nested.File) != 1 {
 				t.Fatalf("nested PAK entries = %d, want 1", len(nested.File))
@@ -76,7 +76,7 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 				t.Fatalf("nested PAK DOS timestamp = date:%d time:%d, want date:%d time:%d", entry.ModifiedDate, entry.ModifiedTime, deterministicDOSDate, deterministicDOSTime)
 			}
 
-			xmlData := readZipEntry(t, nested, GeneratedDialogueXMLArchivePath)
+			xmlData := readZipEntry(t, nested, localization.DialogueXMLArchivePath)
 			parsed, err := localization.ParseDialogueXML(xmlData)
 			if err != nil {
 				t.Fatalf("parse generated dialogue XML: %v", err)
@@ -88,15 +88,15 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 	}
 }
 
-func TestGeneratedPathsMatchModIdentity(t *testing.T) {
+func TestGeneratedPathsMatchOverrideContract(t *testing.T) {
 	if ModID != "kcd_dual_subtitles" {
 		t.Fatalf("ModID = %q, want kcd_dual_subtitles", ModID)
 	}
 	if strings.ContainsAny(ModID, "0123456789-") {
 		t.Fatalf("ModID contains characters excluded by the official mod-id contract: %q", ModID)
 	}
-	if GeneratedDialogueXMLArchivePath != "text_kcd_dual_subtitles.xml" {
-		t.Fatalf("GeneratedDialogueXMLArchivePath = %q", GeneratedDialogueXMLArchivePath)
+	if localization.DialogueXMLArchivePath != "text_ui_dialog.xml" {
+		t.Fatalf("DialogueXMLArchivePath = %q, want text_ui_dialog.xml", localization.DialogueXMLArchivePath)
 	}
 }
 
