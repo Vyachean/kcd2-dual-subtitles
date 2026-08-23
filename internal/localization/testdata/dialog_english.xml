@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Table>
+<Row><Cell>dialog_regular</Cell><Cell>synthetic-source</Cell><Cell>Hello, traveller.</Cell></Row>
+<Row><Cell>dialog_entities</Cell><Cell>synthetic-source</Cell><Cell>Fish &amp; chips &lt;sample&gt; &quot;quoted&quot;.</Cell></Row>
+<Row><Cell>dialog_multiline</Cell><Cell>synthetic-source</Cell><Cell>First line.
+Second line.</Cell></Row>
+<Row><Cell>dialog_identical</Cell><Cell>synthetic-source</Cell><Cell>[pause]</Cell></Row>
+<Row><Cell>dialog_empty</Cell><Cell>synthetic-source</Cell><Cell></Cell></Row>
+</Table>
