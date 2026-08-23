@@ -28,8 +28,11 @@ func TestPatchHUDInjectsWrapperAfterUniqueSubtitleDefinition(t *testing.T) {
 	if !bytes.Contains(decoded.body, []byte(subtitlepayload.HUDWrapperMarker)) {
 		t.Fatal("patched HUD does not contain wrapper marker")
 	}
-	if !bytes.Contains(decoded.body, []byte("appendHtml")) || !bytes.Contains(decoded.body, []byte(subtitlepayload.SecondaryColor)) {
-		t.Fatal("patched HUD does not contain direct htmlText append contract")
+	if !bytes.Contains(decoded.body, []byte("htmlText")) || !bytes.Contains(decoded.body, []byte(subtitlepayload.SecondaryColor)) {
+		t.Fatal("patched HUD does not contain direct htmlText member contract")
+	}
+	if bytes.Contains(decoded.body, []byte("appendHtml")) {
+		t.Fatal("patched HUD unexpectedly depends on non-standard appendHtml")
 	}
 
 	tags, err := parseRootTags(decoded.body)
