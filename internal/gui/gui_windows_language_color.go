@@ -4,6 +4,7 @@ package gui
 
 import (
 	"fmt"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -14,6 +15,7 @@ const (
 	idColorPickerButton        = 1005
 	idPrimaryColorPickerButton = 1006
 	cbResetContent             = 0x014B
+	emSetReadOnly              = 0x00CF
 	ccRGBInit                  = 0x00000001
 	ccFullOpen                 = 0x00000002
 )
@@ -36,8 +38,34 @@ type chooseColor struct {
 }
 
 func (w *nativeWindow) refreshLanguageControls(gameRoot string) error {
+	// Browse is the authoritative GUI selection path. Keep the displayed path
+	// read-only so status/uninstall cannot become detached from service state.
+	if w.gameEdit != 0 {
+		procSendMessageW.Call(w.gameEdit, emSetReadOnly, 1, 0)
+	}
+
 	previousMain, _ := w.selectedLanguage(w.mainCombo)
 	previousSecondary, _ := w.selectedLanguage(w.secondaryCombo)
+
+	procSendMessageW.Call(w.mainCombo, cbResetContent, 0, 0)
+	procSendMessageW.Call(w.secondaryCombo, cbResetContent, 0, 0)
+
+	if strings.TrimSpace(gameRoot) == "" {
+		// No automatic discovery is a normal state for storefronts that are not
+		// yet enumerated. The window must still open so the user can Browse.
+		w.languages = nil
+		w.model.Installed = false
+		w.model.InstallPath = ""
+		w.model.InstallationKnown = false
+		if w.generateButton != 0 {
+			w.setText(w.generateButton, w.model.GenerateButtonLabel())
+			w.enable(w.generateButton, false)
+		}
+		if w.uninstallButton != 0 {
+			w.enable(w.uninstallButton, false)
+		}
+		return nil
+	}
 
 	languages, err := localization.InstalledLanguages(gameRoot)
 	if err != nil {
@@ -45,8 +73,6 @@ func (w *nativeWindow) refreshLanguageControls(gameRoot string) error {
 	}
 	w.languages = languages
 
-	procSendMessageW.Call(w.mainCombo, cbResetContent, 0, 0)
-	procSendMessageW.Call(w.secondaryCombo, cbResetContent, 0, 0)
 	for _, info := range languages {
 		text := mustUTF16(string(info.Language))
 		procSendMessageW.Call(w.mainCombo, cbAddString, 0, uintptr(unsafe.Pointer(text)))
