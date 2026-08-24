@@ -26,15 +26,17 @@ var (
 // OutputPath selects automatic installation; a non-empty OutputPath writes a
 // portable mod ZIP instead. CanaryID enables an explicit acceptance-only
 // marker on one existing localization row. An empty SubtitleStyle keeps the
-// accepted tagged format for backward compatibility.
+// accepted tagged format for backward compatibility. HUDPresentation is used
+// only with SubtitleStyleHUD; nil preserves the live-proven rc.10 defaults.
 type Request struct {
-	GameRoot          string
-	MainLanguage      localization.Language
-	SecondaryLanguage localization.Language
-	SubtitleStyle     SubtitleStyle
-	OutputPath        string
-	Version           string
-	CanaryID          string
+	GameRoot           string
+	MainLanguage       localization.Language
+	SecondaryLanguage  localization.Language
+	SubtitleStyle      SubtitleStyle
+	HUDPresentation    *HUDPresentationConfig
+	OutputPath         string
+	Version            string
+	CanaryID           string
 }
 
 // Result describes a successfully generated mod destination.
@@ -58,6 +60,10 @@ func Generate(request Request) (Result, error) {
 		return Result{}, err
 	}
 	style, err := normalizeSubtitleStyle(request.SubtitleStyle)
+	if err != nil {
+		return Result{}, err
+	}
+	presentation, err := normalizeHUDPresentation(style, request.HUDPresentation)
 	if err != nil {
 		return Result{}, err
 	}
@@ -94,7 +100,7 @@ func Generate(request Request) (Result, error) {
 		return Result{}, fmt.Errorf("parse secondary language %s: %w", request.SecondaryLanguage, err)
 	}
 
-	mergedRows, stats, err := mergeRowsForStyle(style, mainRows, secondaryRows, mainInfo.SubtitleTag, secondaryInfo.SubtitleTag)
+	mergedRows, stats, err := mergeRowsForStyle(style, presentation, mainRows, secondaryRows, mainInfo.SubtitleTag, secondaryInfo.SubtitleTag)
 	if err != nil {
 		return Result{}, fmt.Errorf("merge dialogue rows: %w", err)
 	}
@@ -157,14 +163,19 @@ func Generate(request Request) (Result, error) {
 	return result, nil
 }
 
-func mergeRowsForStyle(style SubtitleStyle, mainRows, secondaryRows []localization.DialogueRow, mainTag, secondaryTag string) ([]localization.DialogueRow, localization.MergeStats, error) {
+func mergeRowsForStyle(style SubtitleStyle, presentation HUDPresentationConfig, mainRows, secondaryRows []localization.DialogueRow, mainTag, secondaryTag string) ([]localization.DialogueRow, localization.MergeStats, error) {
 	switch style {
 	case SubtitleStyleTagged:
 		return localization.MergeDialogueRowsTagged(mainRows, secondaryRows, mainTag, secondaryTag)
 	case SubtitleStyleDifferentiated:
 		return localization.MergeDialogueRowsDifferentiated(mainRows, secondaryRows, mainTag, secondaryTag)
 	case SubtitleStyleHUD:
-		return localization.MergeDialogueRowsHUDPrototype(mainRows, secondaryRows, mainTag, secondaryTag)
+		return localization.MergeDialogueRowsHUD(mainRows, secondaryRows, mainTag, secondaryTag, localization.HUDPresentationOptions{
+			SecondaryColor:   presentation.SecondaryColor,
+			SecondarySize:    presentation.SecondarySize,
+			SecondaryItalic:  presentation.SecondaryItalic,
+			ShowLanguageTags: presentation.ShowLanguageTags,
+		})
 	default:
 		return nil, localization.MergeStats{}, fmt.Errorf("%w: unsupported subtitle style %q", ErrInvalidRequest, style)
 	}
