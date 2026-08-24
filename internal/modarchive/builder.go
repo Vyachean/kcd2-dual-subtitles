@@ -29,7 +29,7 @@ const (
 	// themselves as Windows ZIP 1.0. Go's CreateRaw deliberately preserves zero
 	// version fields unless callers populate them, and retail CryPak rejects that
 	// shape for mod Data/*.pak even though the localization loader is more lenient.
-	kcd2StoredZIPVersion       uint16 = 10
+	kcd2StoredZIPVersion      uint16 = 10
 	kcd2WindowsCreatorVersion uint16 = 10 // platform byte 0 (Windows), spec byte 10.
 )
 
