@@ -12,33 +12,40 @@ import (
 )
 
 // InstallVersionedForLanguages installs one generated subtitle payload under
-// every supplied localization PAK name, so the selected source-language pair
-// does not depend on the game's currently active localization language.
-func InstallVersionedForLanguages(targetLanguages []localization.Language, rows []localization.DialogueRow, version string) (string, error) {
-	documents, err := documentsPath()
+// every supplied localization PAK name in the mod root resolved from gameRoot.
+func InstallVersionedForLanguages(gameRoot string, targetLanguages []localization.Language, rows []localization.DialogueRow, version string) (string, error) {
+	location, err := ResolveInstallLocation(gameRoot)
 	if err != nil {
 		return "", err
 	}
-	return installIntoDocumentsVersionedForLanguages(documents, targetLanguages, rows, nil, version, false)
+	return installIntoModsRootVersionedForLanguages(location.ModsRoot, targetLanguages, rows, nil, version, false)
 }
 
 // InstallVersionedWithHUDForLanguages installs the HUD variant under every
-// supplied localization PAK name while retaining the existing foreign-HUD
-// conflict guard.
-func InstallVersionedWithHUDForLanguages(targetLanguages []localization.Language, rows []localization.DialogueRow, hud []byte, version string) (string, error) {
-	documents, err := documentsPath()
+// supplied localization PAK name while retaining the foreign-HUD conflict
+// guard in the same resolved mod root.
+func InstallVersionedWithHUDForLanguages(gameRoot string, targetLanguages []localization.Language, rows []localization.DialogueRow, hud []byte, version string) (string, error) {
+	location, err := ResolveInstallLocation(gameRoot)
 	if err != nil {
 		return "", err
 	}
-	return installIntoDocumentsVersionedForLanguages(documents, targetLanguages, rows, hud, version, true)
+	return installIntoModsRootVersionedForLanguages(location.ModsRoot, targetLanguages, rows, hud, version, true)
 }
 
+// Kept as a focused filesystem helper for the GDK/Documents tests and legacy
+// single-root acceptance coverage.
 func installIntoDocumentsVersionedForLanguages(documents string, targetLanguages []localization.Language, rows []localization.DialogueRow, hud []byte, version string, withHUD bool) (string, error) {
 	if documents == "" {
 		return "", errors.New("Documents path is empty")
 	}
+	return installIntoModsRootVersionedForLanguages(filepath.Join(documents, ModsDirectoryName), targetLanguages, rows, hud, version, withHUD)
+}
 
-	modsRoot := filepath.Join(documents, ModsDirectoryName)
+func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages []localization.Language, rows []localization.DialogueRow, hud []byte, version string, withHUD bool) (string, error) {
+	modsRoot = strings.TrimSpace(modsRoot)
+	if modsRoot == "" {
+		return "", errors.New("KCD2 mod root is empty")
+	}
 	if withHUD {
 		conflicts, err := findForeignHUDOverrides(modsRoot)
 		if err != nil {
