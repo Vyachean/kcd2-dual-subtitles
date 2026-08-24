@@ -9,13 +9,13 @@ func TestMergeDialogueRowsHUDStylesPrimaryPropertiesIndependently(t *testing.T) 
 		"RU",
 		"EN",
 		HUDPresentationOptions{
-			PrimaryColor:      "#FFEEDD",
-			PrimarySize:       30,
-			PrimaryItalic:     true,
-			SecondaryColor:    "#123ABC",
-			SecondarySize:     18,
-			SecondaryItalic:   false,
-			ShowLanguageTags:  false,
+			PrimaryColor:     "#FFEEDD",
+			PrimarySize:      30,
+			PrimaryItalic:    true,
+			SecondaryColor:   "#123ABC",
+			SecondarySize:    18,
+			SecondaryItalic:  false,
+			ShowLanguageTags: false,
 		},
 	)
 	if err != nil {
@@ -45,7 +45,7 @@ func TestMergeDialogueRowsHUDAllowsPartialPrimaryOverrides(t *testing.T) {
 		{
 			name: "size only",
 			presentation: HUDPresentationOptions{
-				PrimarySize:     28,
+				PrimarySize:    28,
 				SecondaryColor: "#123ABC",
 				SecondarySize:  18,
 			},
@@ -63,13 +63,14 @@ func TestMergeDialogueRowsHUDAllowsPartialPrimaryOverrides(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			rows, _, err := MergeDialogueRowsHUD(
 				[]DialogueRow{{ID: "id", Text: "Primary"}},
 				[]DialogueRow{{ID: "id", Text: "Secondary"}},
 				"RU",
 				"EN",
-				t.presentation,
+				tt.presentation,
 			)
 			if err != nil {
 				t.Fatalf("MergeDialogueRowsHUD() error = %v", err)
