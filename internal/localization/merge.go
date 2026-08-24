@@ -130,9 +130,9 @@ func formatHUDPrototypeBilingual(mainText, secondaryText, mainTag, secondaryTag 
 
 	mainHTML := subtitlepayload.EncodeSecondaryHTML(mainText)
 	secondaryHTML := subtitlepayload.EncodeSecondaryHTML(secondaryText)
-	return "<p align='center'>" + mainHTML +
+	return mainHTML +
 		"<br/><font color='" + subtitlepayload.SecondaryColor + "' size='" + strconv.Itoa(subtitlepayload.SecondarySize) + "'><i>" +
-		secondaryHTML + "</i></font></p>"
+		secondaryHTML + "</i></font>"
 }
 
 func indexDialogueIDs(rows []DialogueRow, side string) (map[string]struct{}, error) {
