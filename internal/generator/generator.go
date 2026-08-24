@@ -17,10 +17,10 @@ import (
 const CanaryPrefix = "[KCD2DS TEST] "
 
 var (
-	ErrInvalidRequest          = errors.New("invalid generation request")
-	readRetailHUD              = gameassets.ReadHUD
-	patchRetailHUD             = gfxpatch.PatchHUDDirectHTMLAll
-	patchRetailHUDReadability  = gfxpatch.PatchHUDDirectHTMLAllWithReadability
+	ErrInvalidRequest         = errors.New("invalid generation request")
+	readRetailHUD             = gameassets.ReadHUD
+	patchRetailHUD            = gfxpatch.PatchHUDDirectHTMLAll
+	patchRetailHUDReadability = gfxpatch.PatchHUDDirectHTMLAllWithReadability
 )
 
 // Request describes one end-to-end mod generation operation. An empty
