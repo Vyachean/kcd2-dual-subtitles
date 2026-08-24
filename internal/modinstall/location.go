@@ -14,7 +14,7 @@ import (
 type InstallLayout string
 
 const (
-	InstallLayoutGameRoot      InstallLayout = "game-root"
+	InstallLayoutGameRoot     InstallLayout = "game-root"
 	InstallLayoutGDKDocuments InstallLayout = "gdk-documents"
 )
 
