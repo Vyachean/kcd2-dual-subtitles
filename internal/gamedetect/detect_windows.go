@@ -20,14 +20,17 @@ var (
 	procGetDriveType           = kernel32.NewProc("GetDriveTypeW")
 )
 
-// Detect searches Xbox / Microsoft Store GDK flat-file install roots on fixed
-// drives and returns every structurally valid KCD2 Content root it finds.
+// Detect performs best-effort Windows discovery and returns every structurally
+// compatible KCD2 Content root it finds. Discovery currently knows Microsoft
+// GDK/Xbox install roots, but store identity is not part of compatibility:
+// callers can always pass any compatible Steam/GOG/Epic/other installation
+// through NormalizeSelection / Browse.
 func Detect() (Result, error) {
 	drives, err := logicalFixedDrives()
 	if err != nil {
 		return Result{}, err
 	}
-	return detectInXboxRoots(xboxRootsForDrives(drives)), nil
+	return detectInInstallRoots(xboxRootsForDrives(drives)), nil
 }
 
 func logicalFixedDrives() ([]string, error) {
