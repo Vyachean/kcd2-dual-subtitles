@@ -24,9 +24,11 @@ type Model struct {
 // fallback path.
 func NewModel(detection gamedetect.Result, detectionErr error, installation modinstall.Status, installationErr error) Model {
 	model := Model{
-		CandidateCount: len(detection.Candidates),
+		CandidateCount:    len(detection.Candidates),
+		Installed:         installation.Installed,
+		InstallPath:       installation.Path,
+		InstallationKnown: installationErr == nil,
 	}
-	model.ApplyInstallationState(installation, installationErr)
 
 	if root, ok := detection.Unique(); ok {
 		model.GameRoot = root
@@ -50,22 +52,6 @@ func NewModel(detection gamedetect.Result, detectionErr error, installation modi
 		model.Status = "KCD2 found automatically. Ready to generate and install."
 	}
 	return model
-}
-
-// ApplyInstallationState updates only the filesystem-backed installation fields.
-// It intentionally leaves Status untouched so callers can preserve the more
-// relevant operation message (for example, a generation failure) while making
-// Regenerate/Uninstall immediately reflect the actual post-operation state.
-func (m *Model) ApplyInstallationState(installation modinstall.Status, err error) {
-	if err != nil {
-		m.InstallationKnown = false
-		m.Installed = false
-		m.InstallPath = ""
-		return
-	}
-	m.InstallationKnown = true
-	m.Installed = installation.Installed
-	m.InstallPath = installation.Path
 }
 
 // GenerateButtonLabel reflects whether the next operation is an initial install
