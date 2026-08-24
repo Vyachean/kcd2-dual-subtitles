@@ -31,13 +31,13 @@ type MergeStats struct {
 // generator for truly bilingual rows in direct-HTML HUD mode. Empty/zero
 // primary properties leave that property under vanilla control.
 type HUDPresentationOptions struct {
-	PrimaryColor      string
-	PrimarySize       int
-	PrimaryItalic     bool
-	SecondaryColor    string
-	SecondarySize     int
-	SecondaryItalic   bool
-	ShowLanguageTags  bool
+	PrimaryColor     string
+	PrimarySize      int
+	PrimaryItalic    bool
+	SecondaryColor   string
+	SecondarySize    int
+	SecondaryItalic  bool
+	ShowLanguageTags bool
 }
 
 type bilingualFormatter func(mainText, secondaryText, mainTag, secondaryTag string) string
