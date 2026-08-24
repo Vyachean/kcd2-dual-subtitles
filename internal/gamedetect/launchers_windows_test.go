@@ -128,8 +128,9 @@ func TestMergeDetectionResultsDeduplicatesSameInstallationAcrossLaunchers(t *tes
 }
 
 func TestMalformedLauncherMetadataFailsSoft(t *testing.T) {
-	if got := parseSteamLibraryFolders([]byte(`"libraryfolders" { "1" { "path" "unterminated }`)); len(got) != 0 {
-		t.Fatalf("malformed Steam VDF roots = %#v, want none", got)
+	steamRoots := parseSteamLibraryFolders([]byte(`"libraryfolders" { "1" { "path" "unterminated }`))
+	if got := detectCandidatePaths(steamRoots); len(got.Candidates) != 0 {
+		t.Fatalf("malformed Steam VDF candidates = %#v, want none", got.Candidates)
 	}
 	configPath := filepath.Join(t.TempDir(), "broken-config.json")
 	if err := os.WriteFile(configPath, []byte(`{"libraryPath":`), 0o644); err != nil {
