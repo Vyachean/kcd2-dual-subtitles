@@ -7,19 +7,19 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 )
 
-var ErrInvalidGameRoot = errors.New("selected directory is not a supported KCD2 Content root")
+var ErrInvalidGameRoot = errors.New("selected directory is not a compatible KCD2 Content root")
 
-var requiredRelativeFiles = []string{
-	filepath.Join("Localization", "English_xml.pak"),
-	filepath.Join("Localization", "Russian_xml.pak"),
+var requiredCoreFiles = []string{
 	filepath.Join("Data", "Scripts.pak"),
 	filepath.Join("Data", "Tables.pak"),
 }
 
 // Result contains all structurally valid KCD2 Content roots found by the
-// platform-specific Xbox installation discovery pass.
+// platform-specific best-effort discovery pass.
 type Result struct {
 	Candidates []string
 }
@@ -34,7 +34,8 @@ func (r Result) Unique() (string, bool) {
 }
 
 // NormalizeSelection accepts either a KCD2 Content root or its immediate
-// parent directory and returns the validated Content root.
+// parent directory and returns the validated Content root. Validation is based
+// on the game-file layout, not on the store or launcher that installed it.
 func NormalizeSelection(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if len(path) >= 2 && strings.HasPrefix(path, `"`) && strings.HasSuffix(path, `"`) {
@@ -60,24 +61,26 @@ func NormalizeSelection(path string) (string, error) {
 	return "", fmt.Errorf("%w: %q", ErrInvalidGameRoot, cleaned)
 }
 
-// IsGameRoot validates the non-proprietary file layout needed by the current
-// Russian/English generator. It intentionally does not read localization
-// contents during discovery.
+// IsGameRoot validates the store-neutral file layout needed by the generator.
+// A compatible installation must contain the shared KCD2 data PAKs and at
+// least two localization PAKs known to the localization registry. It does not
+// require any particular language pair and does not identify the store.
 func IsGameRoot(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil || !info.IsDir() {
 		return false
 	}
-	for _, relative := range requiredRelativeFiles {
+	for _, relative := range requiredCoreFiles {
 		info, err := os.Stat(filepath.Join(path, relative))
 		if err != nil || info.IsDir() {
 			return false
 		}
 	}
-	return true
+	languages, err := localization.InstalledLanguages(path)
+	return err == nil && len(languages) >= 2
 }
 
-func detectInXboxRoots(roots []string) Result {
+func detectInInstallRoots(roots []string) Result {
 	seen := make(map[string]struct{})
 	candidates := make([]string, 0)
 
