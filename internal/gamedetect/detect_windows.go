@@ -17,13 +17,13 @@ import (
 const (
 	driveFixed = 3
 
-	regKeyRead      = 0x20019
-	regSZ           = 1
-	regExpandSZ     = 2
-	regSuccess      = 0
-	regMoreData     = 234
-	regNoMoreItems  = 259
-	hkeyCurrentUser = uintptr(0x80000001)
+	regKeyRead       = 0x20019
+	regSZ            = 1
+	regExpandSZ      = 2
+	regSuccess       = 0
+	regMoreData      = 234
+	regNoMoreItems   = 259
+	hkeyCurrentUser  = uintptr(0x80000001)
 	hkeyLocalMachine = uintptr(0x80000002)
 )
 
@@ -333,6 +333,7 @@ func gogRegistryGamePaths() []string {
 				paths = append(paths, path)
 			}
 		}
+	}
 	return uniquePaths(paths)
 }
 
