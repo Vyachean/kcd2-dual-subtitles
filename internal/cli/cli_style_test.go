@@ -30,7 +30,7 @@ func TestRunGeneratePassesDifferentiatedSubtitleStyle(t *testing.T) {
 	if gotRequest.SubtitleStyle != generator.SubtitleStyleDifferentiated {
 		t.Fatalf("SubtitleStyle = %q, want %q", gotRequest.SubtitleStyle, generator.SubtitleStyleDifferentiated)
 	}
-	if !strings.Contains(stdout.String(), "Experimental subtitle style: differentiated") {
+	if !strings.Contains(stdout.String(), "Legacy diagnostic subtitle style: differentiated") {
 		t.Fatalf("stdout = %q, want differentiated style report", stdout.String())
 	}
 }
@@ -58,8 +58,11 @@ func TestRunGeneratePassesHUDSubtitleStyle(t *testing.T) {
 	if gotRequest.SubtitleStyle != generator.SubtitleStyleHUD {
 		t.Fatalf("SubtitleStyle = %q, want %q", gotRequest.SubtitleStyle, generator.SubtitleStyleHUD)
 	}
-	if !strings.Contains(stdout.String(), "Derived HUD override: enabled (experimental)") {
+	if !strings.Contains(stdout.String(), "Derived HUD override: enabled") {
 		t.Fatalf("stdout = %q, want derived HUD report", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "experimental") {
+		t.Fatalf("stable HUD mode is still labeled experimental: %q", stdout.String())
 	}
 }
 
