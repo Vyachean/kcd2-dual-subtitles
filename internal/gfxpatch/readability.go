@@ -3,15 +3,15 @@ package gfxpatch
 // HUDReadabilityConfig controls optional whole-TextField readability effects.
 // The effects intentionally apply to the complete bilingual subtitle block,
 // because the retail HUD renders both generated lines through one TextField.
-// Zero values preserve the retail/default TextField presentation.
+// Zero ShadowColor is black, preserving the existing shadow default.
 type HUDReadabilityConfig struct {
-	Outline bool
-	Shadow  bool
+	Outline     bool
+	Shadow      bool
+	ShadowColor int32
 }
 
 const (
 	hudOutlineWidth   = 1
-	hudShadowColor    = 0x000000
 	hudShadowAlpha    = 1
 	hudShadowBlur     = 2
 	hudShadowAngle    = 45
@@ -32,7 +32,7 @@ func appendTextFieldReadability(builder *actionBuilder, pushTextField func(), co
 		name  string
 		value int32
 	}{
-		{name: "shadowColor", value: hudShadowColor},
+		{name: "shadowColor", value: config.ShadowColor},
 		{name: "shadowAlpha", value: hudShadowAlpha},
 		{name: "shadowBlurX", value: hudShadowBlur},
 		{name: "shadowBlurY", value: hudShadowBlur},
