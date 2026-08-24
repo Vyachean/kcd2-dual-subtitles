@@ -8,11 +8,11 @@ It does not redistribute KCD2 localization or UI assets and does not modify the 
 
 The application is **store-neutral**. Compatibility is determined by the KCD2 game-file layout, not by whether the game came from Steam, GOG, Epic Games Store, Xbox / Microsoft Store, or another Windows distribution.
 
-A compatible installation must provide the normal KCD2 `Content` layout, the required shared Data PAKs, and at least two localization PAKs supported by the tool. The application does not require English, Russian, or any other specific language pair to be installed.
+A compatible selected game root contains the shared KCD2 Data PAKs and at least two localization PAKs supported by the tool. The application does not require English, Russian, or any other specific language pair to be installed.
 
 Automatic discovery is only a convenience and is not the compatibility boundary. The current Windows autodetection strategy knows Microsoft GDK/Xbox roots; installations from other stores can be selected with `Browse...` and are validated by the same store-neutral structural rules.
 
-The v0.3 retail test cycle was performed on **Kingdom Come: Deliverance II 1.5.6, Xbox / Microsoft Store PC**. That is test evidence, not a store restriction. Other Windows storefront builds are supported when they expose the same compatible KCD2 file structure; they have not all been separately retail-tested by this project.
+The v0.3 retail test cycle was performed on **Kingdom Come: Deliverance II 1.5.6, Xbox / Microsoft Store PC**. That is test evidence, not a store restriction. Other Windows storefront builds are supported when they expose the compatible KCD2 file structure; they have not all been separately retail-tested by this project.
 
 Retail-tested behavior includes:
 
@@ -23,7 +23,7 @@ Retail-tested behavior includes:
 - configurable primary and secondary subtitle presentation;
 - optional language tags, italic, outline and shadow;
 - native color selection;
-- safe regeneration and installation through the Windows Documents folder.
+- safe regeneration and installation on the Microsoft GDK/Documents layout.
 
 ## Windows GUI
 
@@ -101,25 +101,43 @@ The generated localization patch is written under every supported localization P
 
 Automatic Windows discovery is best-effort. Store/launcher detection coverage does not define which installations the application supports.
 
-If the game is not found automatically, use `Browse...`. It accepts either the KCD2 `Content` directory or its immediate parent, for example:
+If the game is not found automatically, use `Browse...`. The selector accepts a compatible KCD2 game root directly and also accepts the immediate parent of a `Content` root used by packaged layouts.
+
+Examples can therefore look like either:
 
 ```text
-...\KingdomComeDeliverance2\Content
+C:\Games\KingdomComeDeliverance2
 ```
 
-The selected directory is accepted solely by its compatible KCD2 structure. There is no Steam/GOG/Epic/Xbox mode switch and no store-specific generation path.
+or:
 
-## Generated mod
+```text
+C:\XboxGames\Kingdom Come- Deliverance II\Content
+```
 
-Automatic installation uses the real Windows **Documents Known Folder**:
+The normalized selected root is accepted solely by its KCD2 structure. There is no Steam/GOG/Epic/Xbox generation mode switch.
+
+## Automatic installation target
+
+The selected game installation is also the source of truth for **where the mod is installed**. The application resolves one mod root and uses that same root for installation, HUD-conflict detection, `mod_order.txt`, Regenerate status and Uninstall.
+
+For the normal PC KCD2 layout used by Steam/GOG/Epic and compatible distributions:
+
+```text
+<game-root>\Mods\kcd_dual_subtitles\
+```
+
+For Microsoft GDK/Xbox packaged installations:
 
 ```text
 <Documents>\kingdomcome_mods\kcd_dual_subtitles\
 ```
 
-Redirected and OneDrive-backed Documents folders are supported. Normal publication uses same-volume rename semantics; a guarded copy fallback is available for cloud-backed filesystem cases where Windows repeatedly refuses the final rename.
+GDK handling is selected from package artifacts in or next to the selected installation (`gamelaunchhelper.exe`, `MicrosoftGame.config`, or `appxmanifest.xml`), not from an `XboxGames` path name. A custom library location therefore does not change the rule.
 
-A styled installation has the following shape:
+The GDK Documents path is resolved through the real Windows **Documents Known Folder**, so redirected and OneDrive-backed Documents folders are supported. Publication remains staged and guarded; the existing bounded retry/copy fallback for cloud-backed filesystem failures remains available there.
+
+A styled installation has the following shape beneath the resolved `kcd_dual_subtitles` directory:
 
 ```text
 kcd_dual_subtitles\
@@ -135,17 +153,29 @@ kcd_dual_subtitles\
 
 The generated localization PAKs contain only the project's patch resource and changed dialogue rows. The generated Data PAK contains a deterministic transformation of the user's installed retail HUD when styled mode is enabled.
 
-The original files under the KCD2 installation are never overwritten.
+The original KCD2 files are never overwritten.
 
 ## Other HUD mods
 
-Styled mode needs to supply `Libs/UI/hud.gfx`. The installer therefore checks installed mods for another HUD override and fails closed instead of silently overwriting or composing an unknown foreign HUD.
+Styled mode needs to supply `Libs/UI/hud.gfx`. The installer checks the **resolved mod root for the selected installation** for another HUD override and fails closed instead of silently overwriting or composing an unknown foreign HUD.
 
 If another mod replaces the KCD2 HUD, remove the conflict or use the non-styled tagged mode.
 
 ## `mod_order.txt`
 
-If `<Documents>\kingdomcome_mods\mod_order.txt` already exists, installation ensures `kcd_dual_subtitles` is present while preserving unrelated entries and their order.
+If `mod_order.txt` already exists in the resolved mod root, installation ensures `kcd_dual_subtitles` is present while preserving unrelated entries and their order.
+
+That means the file is checked at either:
+
+```text
+<game-root>\Mods\mod_order.txt
+```
+
+or, for GDK:
+
+```text
+<Documents>\kingdomcome_mods\mod_order.txt
+```
 
 The tool does not create `mod_order.txt` when it is absent.
 
@@ -153,17 +183,15 @@ The tool does not create `mod_order.txt` when it is absent.
 
 The generator reads the currently installed localization and HUD assets each time it runs. After a KCD2 update, run the application again and use **Regenerate** so the mod is rebuilt from the current game files.
 
+Regenerate status is checked against the currently selected installation's resolved mod root, so switching `Browse...` to another KCD2 installation does not reuse the status of a different copy of the game.
+
 Generation and replacement are staged. A failed build is not published as a successful new installation.
 
 ## Uninstall
 
-The GUI `Uninstall` action removes only:
+The GUI `Uninstall` action removes only this project's directory from the **currently selected installation's resolved mod root** and removes only this project's entries from that root's existing `mod_order.txt`.
 
-```text
-<Documents>\kingdomcome_mods\kcd_dual_subtitles
-```
-
-and removes only this project's entries from an existing `mod_order.txt`. Other mods and their load-order entries are left alone.
+Other mods and their load-order entries are left alone.
 
 ## CLI
 
@@ -172,25 +200,27 @@ The same executable keeps a CLI for scripting, diagnostics and portable ZIP gene
 Example:
 
 ```text
-kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary German
+kcd2-dual-subtitles.exe generate --game "C:\path\to\KCD2-root" --main English --secondary German
 ```
 
 Use the default tagged format:
 
 ```text
-kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary German --subtitle-style tagged
+kcd2-dual-subtitles.exe generate --game "C:\path\to\KCD2-root" --main English --secondary German --subtitle-style tagged
 ```
 
 Use the styled HUD defaults:
 
 ```text
-kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary German --subtitle-style hud
+kcd2-dual-subtitles.exe generate --game "C:\path\to\KCD2-root" --main English --secondary German --subtitle-style hud
 ```
+
+Without `--output`, the Windows build resolves the automatic install target from `--game` using the same rules as the GUI.
 
 Create a portable ZIP instead of installing:
 
 ```text
-kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary German --output "kcd2-dual-subtitles.zip"
+kcd2-dual-subtitles.exe generate --game "C:\path\to\KCD2-root" --main English --secondary German --output "kcd2-dual-subtitles.zip"
 ```
 
 Other entrypoints:
@@ -202,13 +232,15 @@ kcd2-dual-subtitles.exe --version
 
 `--canary-id` remains an acceptance/debugging option and should not be used for normal generation.
 
+Automatic installation is Windows-only. Portable ZIP generation remains available on other supported build environments.
+
 ## Known limitations
 
 - v0.3 uses a **generation-time fixed language pair**; there is no in-game secondary-language switch yet;
 - standalone narrative/cinematic captions routed through `fc_setNarrativeSubtitles` are not yet handled by the proven standard/bubble HUD transformations and may remain single-language or unstyled;
 - dialogue localization comes from `text_ui_dialog.xml`; items, quests, tutorials, codex and general UI text are outside the current scope;
 - automatic discovery does not yet enumerate every possible launcher/library location, so `Browse...` may be required;
-- not every Windows storefront build has been separately retail-tested even though compatibility is store-neutral;
+- not every Windows storefront build has been separately retail-tested even though compatibility and installation targeting are store-neutral;
 - the executable is not Authenticode-signed;
 - there is no application self-update or persisted presentation profile.
 
