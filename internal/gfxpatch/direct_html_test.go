@@ -74,7 +74,35 @@ func TestPatchHUDDirectHTMLFailsClosedWhenNoSpareRegisterExists(t *testing.T) {
 	}
 }
 
-func TestPatchHUDDirectHTMLRejectsEarlyReturn(t *testing.T) {
+func TestPatchHUDDirectHTMLAllowsGuardedEarlyReturn(t *testing.T) {
+	builder := newActionBuilder()
+	builder.pushInt(1)
+	builder.ifTrue("continue")
+	builder.pushString("early")
+	builder.simple(actionReturn)
+	builder.label("continue")
+	builder.pushString("NORMAL_PATH_SENTINEL")
+	builder.simple(actionPop)
+	body, err := builder.finish()
+	if err != nil {
+		t.Fatalf("build guarded return body: %v", err)
+	}
+	input := syntheticRegisteredHUD(t, "FWS", 7, body)
+
+	patched, err := PatchHUDDirectHTML(input)
+	if err != nil {
+		t.Fatalf("PatchHUDDirectHTML() guarded-return error = %v", err)
+	}
+	decoded, err := decodeContainer(patched)
+	if err != nil {
+		t.Fatalf("decode guarded-return HUD: %v", err)
+	}
+	if !bytes.Contains(decoded.body, []byte("NORMAL_PATH_SENTINEL")) || !bytes.Contains(decoded.body, []byte("htmlText")) {
+		t.Fatal("guarded-return patch did not preserve normal path and direct HTML postlude")
+	}
+}
+
+func TestPatchHUDDirectHTMLRejectsUnguardedEarlyReturn(t *testing.T) {
 	body := append(pushString("result"), actionReturn)
 	input := syntheticRegisteredHUD(t, "FWS", 7, body)
 
