@@ -42,14 +42,15 @@ type Request struct {
 
 // Result describes a successfully generated mod destination.
 type Result struct {
-	OutputPath          string
-	InstallPath         string
-	Stats               localization.MergeStats
-	PatchRows           int
-	CanaryID            string
-	SubtitleStyle       SubtitleStyle
-	HUDOverride         bool
-	LocalizationTargets int
+	OutputPath            string
+	InstallPath           string
+	Stats                 localization.MergeStats
+	PatchRows             int
+	CanaryID              string
+	SubtitleStyle         SubtitleStyle
+	HUDOverride           bool
+	LocalizationTargets   int
+	GenerationFingerprint GenerationFingerprint
 }
 
 // Generate reads installed localization PAKs, merges their dialogue rows and
@@ -135,6 +136,14 @@ func Generate(request Request) (Result, error) {
 		CanaryID:            strings.TrimSpace(request.CanaryID),
 		SubtitleStyle:       style,
 		LocalizationTargets: len(targetLanguages),
+		GenerationFingerprint: fingerprintFromDialogueInputs(
+			request.MainLanguage,
+			request.SecondaryLanguage,
+			mainXML,
+			secondaryXML,
+			targetLanguages,
+			style == SubtitleStyleHUD,
+		),
 	}
 
 	var derivedHUD []byte
@@ -143,6 +152,7 @@ func Generate(request Request) (Result, error) {
 		if err != nil {
 			return Result{}, fmt.Errorf("read retail HUD from %s: %w", gameassets.GameDataPAKRelativePath, err)
 		}
+		result.GenerationFingerprint.RetailHUDSHA256 = sha256Hex(retailHUD)
 		if presentation.Outline || presentation.Shadow {
 			shadowColor, colorErr := hudColorValue(presentation.ShadowColor)
 			if colorErr != nil {
