@@ -104,5 +104,5 @@ func buildHUDPAK(hud []byte) ([]byte, error) {
 	if len(hud) == 0 {
 		return nil, ErrHUDRequired
 	}
-	return buildCryPak([]archiveEntry{{name: HUDArchivePath, data: hud}})
+	return buildDataCryPak([]archiveEntry{{name: HUDArchivePath, data: hud}})
 }
