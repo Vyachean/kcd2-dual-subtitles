@@ -3,116 +3,124 @@ package modarchive
 import (
 	"archive/zip"
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 )
 
-func TestBuildCreatesExpectedArchive(t *testing.T) {
-	output := filepath.Join(t.TempDir(), "mod.zip")
+func TestBuildArchiveBytesStructure(t *testing.T) {
 	rows := []localization.DialogueRow{
-		{ID: "a", Text: "Привет"},
-		{ID: "b", Text: "Hello"},
+		{ID: "dialog_one", Source: "source & <meta>", Text: "Русский\\nEnglish"},
+		{ID: "dialog_multiline", Source: "source", Text: "Первая строка.\nВторая строка.\\nFirst line.\nSecond line."},
 	}
 
-	if err := Build(output, localization.Russian, rows); err != nil {
-		t.Fatalf("Build() error = %v", err)
+	tests := []struct {
+		name           string
+		language       localization.Language
+		wantPAKArchive string
+	}{
+		{name: "Russian", language: localization.Russian, wantPAKArchive: modArchivePath("Localization/Russian_xml.pak")},
+		{name: "English", language: localization.English, wantPAKArchive: modArchivePath("Localization/English_xml.pak")},
 	}
 
-	reader, err := zip.OpenReader(output)
-	if err != nil {
-		t.Fatalf("zip.OpenReader() error = %v", err)
-	}
-	defer reader.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			archiveData, err := buildArchiveBytes(tt.language, rows)
+			if err != nil {
+				t.Fatalf("buildArchiveBytes() error = %v", err)
+			}
 
-	files := make(map[string]*zip.File)
-	for _, file := range reader.File {
-		files[file.Name] = file
-	}
+			outer := openZipBytes(t, archiveData)
+			manifestPath := modArchivePath(ManifestFilename)
+			wantOuterNames := []string{manifestPath, tt.wantPAKArchive}
+			if got := zipNames(outer); !reflect.DeepEqual(got, wantOuterNames) {
+				t.Fatalf("outer ZIP entries = %#v, want %#v", got, wantOuterNames)
+			}
 
-	manifestPath := "kcd_dual_subtitles/mod.manifest"
-	pakPath := "kcd_dual_subtitles/Localization/Russian_xml.pak"
-	if files[manifestPath] == nil {
-		t.Fatalf("missing %s", manifestPath)
-	}
-	if files[pakPath] == nil {
-		t.Fatalf("missing %s", pakPath)
-	}
+			manifestData := readZipEntry(t, outer, manifestPath)
+			manifestText := string(manifestData)
+			for _, want := range []string{
+				"<name>KCD2 Dual Subtitles</name>",
+				"<modid>kcd_dual_subtitles</modid>",
+				"<author>Vyachean</author>",
+				"<version>dev</version>",
+				"<created_on>2026-08-23</created_on>",
+			} {
+				if !strings.Contains(manifestText, want) {
+					t.Fatalf("manifest does not contain %q:\n%s", want, manifestText)
+				}
+			}
 
-	manifest := readZipFile(t, files[manifestPath])
-	if !strings.Contains(string(manifest), "<Name>KCD2 Dual Subtitles</Name>") {
-		t.Fatalf("manifest = %q", manifest)
-	}
+			pakData := readZipEntry(t, outer, tt.wantPAKArchive)
+			nested := openZipBytes(t, pakData)
+			if got := zipNames(nested); !reflect.DeepEqual(got, []string{LocalizationPatchArchivePath}) {
+				t.Fatalf("nested PAK entries = %#v, want [%q]", got, LocalizationPatchArchivePath)
+			}
+			if len(nested.File) != 1 {
+				t.Fatalf("nested PAK entries = %d, want 1", len(nested.File))
+			}
+			entry := nested.File[0]
+			if entry.Method != zip.Store {
+				t.Fatalf("nested PAK compression = %d, want zip.Store (%d)", entry.Method, zip.Store)
+			}
+			if entry.Flags&0x8 != 0 {
+				t.Fatalf("nested PAK uses ZIP data descriptor flag: flags=%#x", entry.Flags)
+			}
+			if len(entry.Extra) != 0 {
+				t.Fatalf("nested PAK entry has ZIP extra fields: %x", entry.Extra)
+			}
+			if entry.ModifiedDate != deterministicDOSDate || entry.ModifiedTime != deterministicDOSTime {
+				t.Fatalf("nested PAK DOS timestamp = date:%d time:%d, want date:%d time:%d", entry.ModifiedDate, entry.ModifiedTime, deterministicDOSDate, deterministicDOSTime)
+			}
 
-	pakBytes := readZipFile(t, files[pakPath])
-	pakReader, err := zip.NewReader(bytes.NewReader(pakBytes), int64(len(pakBytes)))
-	if err != nil {
-		t.Fatalf("zip.NewReader(PAK) error = %v", err)
-	}
-	if len(pakReader.File) != 1 || pakReader.File[0].Name != LocalizationPatchArchivePath {
-		t.Fatalf("PAK entries = %+v", pakReader.File)
-	}
-	xmlBytes := readZipFile(t, pakReader.File[0])
-	parsed, err := localization.ParseDialogueXML(xmlBytes)
-	if err != nil {
-		t.Fatalf("ParseDialogueXML() error = %v", err)
-	}
-	if len(parsed) != len(rows) {
-		t.Fatalf("parsed rows = %d, want %d", len(parsed), len(rows))
+			xmlData := readZipEntry(t, nested, LocalizationPatchArchivePath)
+			parsed, err := localization.ParseDialogueXML(xmlData)
+			if err != nil {
+				t.Fatalf("parse generated dialogue patch XML: %v", err)
+			}
+			if !reflect.DeepEqual(parsed, rows) {
+				t.Fatalf("generated dialogue rows = %#v, want %#v", parsed, rows)
+			}
+		})
 	}
 }
 
-func TestBuildRejectsExistingOutputWithoutChangingIt(t *testing.T) {
-	output := filepath.Join(t.TempDir(), "mod.zip")
-	original := []byte("keep me")
-	if err := os.WriteFile(output, original, 0o644); err != nil {
-		t.Fatal(err)
+func TestGeneratedPathsMatchPatchContract(t *testing.T) {
+	if ModID != "kcd_dual_subtitles" {
+		t.Fatalf("ModID = %q, want kcd_dual_subtitles", ModID)
 	}
-
-	err := Build(output, localization.English, []localization.DialogueRow{{ID: "id", Text: "text"}})
-	if !errors.Is(err, ErrOutputExists) {
-		t.Fatalf("Build() error = %v, want errors.Is(..., ErrOutputExists)", err)
+	if strings.ContainsAny(ModID, "0123456789-") {
+		t.Fatalf("ModID contains characters excluded by the official mod-id contract: %q", ModID)
 	}
-	current, readErr := os.ReadFile(output)
-	if readErr != nil {
-		t.Fatal(readErr)
+	if localization.DialogueXMLArchivePath != "text_ui_dialog.xml" {
+		t.Fatalf("DialogueXMLArchivePath = %q, want text_ui_dialog.xml", localization.DialogueXMLArchivePath)
 	}
-	if !bytes.Equal(current, original) {
-		t.Fatalf("output changed to %q", current)
+	if LocalizationPatchArchivePath != "text_ui__kcd_dual_subtitles.xml" {
+		t.Fatalf("LocalizationPatchArchivePath = %q, want text_ui__kcd_dual_subtitles.xml", LocalizationPatchArchivePath)
 	}
 }
 
-func TestBuildArchiveBytesVersionedUsesProvidedVersion(t *testing.T) {
-	archiveBytes, err := buildArchiveBytesVersioned(localization.English, []localization.DialogueRow{{ID: "id", Text: "text"}}, "v0.1.0-rc.1")
+func TestManifestUsesRequestedVersion(t *testing.T) {
+	archiveData, err := buildArchiveBytesVersioned(localization.Russian, []localization.DialogueRow{{ID: "id", Text: "text"}}, "v0.1.0-rc.4")
 	if err != nil {
 		t.Fatalf("buildArchiveBytesVersioned() error = %v", err)
 	}
-
-	reader, err := zip.NewReader(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var manifest []byte
-	for _, file := range reader.File {
-		if file.Name == "kcd_dual_subtitles/mod.manifest" {
-			manifest = readZipFile(t, file)
-			break
-		}
-	}
-	if !strings.Contains(string(manifest), "<Version>v0.1.0-rc.1</Version>") {
-		t.Fatalf("manifest = %q", manifest)
+	outer := openZipBytes(t, archiveData)
+	manifestText := string(readZipEntry(t, outer, modArchivePath(ManifestFilename)))
+	if !strings.Contains(manifestText, "<version>v0.1.0-rc.4</version>") {
+		t.Fatalf("manifest version does not match requested build version:\n%s", manifestText)
 	}
 }
 
-func TestBuildArchiveBytesIsDeterministic(t *testing.T) {
-	rows := []localization.DialogueRow{{ID: "id", Text: "text"}}
+func TestBuildArchiveBytesDeterministic(t *testing.T) {
+	rows := []localization.DialogueRow{{ID: "id", Source: "source", Text: "Основной\\nSecondary"}}
+
 	first, err := buildArchiveBytes(localization.Russian, rows)
 	if err != nil {
 		t.Fatalf("first buildArchiveBytes() error = %v", err)
@@ -142,127 +150,112 @@ func TestBuildRejectsInvalidDialogueRowWithoutResidue(t *testing.T) {
 	directory := t.TempDir()
 	output := filepath.Join(directory, "mod.zip")
 
-	err := Build(output, localization.English, []localization.DialogueRow{{ID: "", Text: "text"}})
-	if err == nil {
-		t.Fatal("Build() error = nil")
+	err := Build(output, localization.Russian, []localization.DialogueRow{{ID: "", Text: "invalid"}})
+	if !errors.Is(err, localization.ErrInvalidDialogueRow) {
+		t.Fatalf("Build() error = %v, want errors.Is(..., ErrInvalidDialogueRow)", err)
 	}
-	if _, statErr := os.Stat(output); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("output exists after invalid-row failure: %v", statErr)
-	}
+
 	entries, readErr := os.ReadDir(directory)
 	if readErr != nil {
-		t.Fatal(readErr)
+		t.Fatalf("ReadDir() error = %v", readErr)
 	}
 	if len(entries) != 0 {
-		t.Fatalf("temporary residue after failed build: %+v", entries)
+		t.Fatalf("failed generation left files behind: %#v", entries)
 	}
 }
 
-func TestBuildLocalizationPAKUsesStoredEntryWithoutDescriptorOrExtraFields(t *testing.T) {
-	pakBytes, err := buildLocalizationPAK([]localization.DialogueRow{{ID: "id", Text: "text"}})
-	if err != nil {
-		t.Fatalf("buildLocalizationPAK() error = %v", err)
+func TestBuildDoesNotOverwriteExistingOutput(t *testing.T) {
+	directory := t.TempDir()
+	output := filepath.Join(directory, "mod.zip")
+	original := []byte("existing output")
+	if err := os.WriteFile(output, original, 0o600); err != nil {
+		t.Fatalf("write existing output: %v", err)
 	}
-	assertRawZipContract(t, pakBytes, 0, 0)
 
-	reader, err := zip.NewReader(bytes.NewReader(pakBytes), int64(len(pakBytes)))
+	err := Build(output, localization.Russian, []localization.DialogueRow{{ID: "id", Text: "text"}})
+	if !errors.Is(err, ErrOutputExists) {
+		t.Fatalf("Build() error = %v, want errors.Is(..., ErrOutputExists)", err)
+	}
+
+	got, err := os.ReadFile(output)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("read existing output: %v", err)
 	}
-	if len(reader.File) != 1 {
-		t.Fatalf("entries = %d", len(reader.File))
-	}
-	file := reader.File[0]
-	if file.Name != LocalizationPatchArchivePath {
-		t.Fatalf("entry name = %q", file.Name)
-	}
-	if file.Method != zip.Store {
-		t.Fatalf("method = %d, want Store", file.Method)
-	}
-	if file.Flags != 0 {
-		t.Fatalf("flags = %#x, want 0", file.Flags)
-	}
-	if len(file.Extra) != 0 {
-		t.Fatalf("extra field length = %d, want 0", len(file.Extra))
+	if !bytes.Equal(got, original) {
+		t.Fatalf("existing output changed: got %q, want %q", got, original)
 	}
 }
 
-func TestBuildDataCryPakUsesCryPakCompatibleVersionFields(t *testing.T) {
-	pakBytes, err := buildDataCryPak([]archiveEntry{{name: "Libs/UI/hud.gfx", data: []byte("hud")}})
+func TestBuildPublishesCompleteArchiveAndRemovesTemp(t *testing.T) {
+	directory := t.TempDir()
+	output := filepath.Join(directory, "dual-subtitles.zip")
+	rows := []localization.DialogueRow{{ID: "id", Source: "source", Text: "Русский\\nEnglish"}}
+
+	expected, err := buildArchiveBytes(localization.Russian, rows)
 	if err != nil {
-		t.Fatalf("buildDataCryPak() error = %v", err)
+		t.Fatalf("buildArchiveBytes() error = %v", err)
 	}
-	assertRawZipContract(t, pakBytes, kcd2WindowsCreatorVersion, kcd2StoredZIPVersion)
+	if err := Build(output, localization.Russian, rows); err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	got, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read built output: %v", err)
+	}
+	if !bytes.Equal(got, expected) {
+		t.Fatal("published archive bytes differ from fully built archive")
+	}
+
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != filepath.Base(output) {
+		t.Fatalf("output directory contains unexpected residue: %#v", entries)
+	}
 }
 
-func assertRawZipContract(t *testing.T, data []byte, wantCreatorVersion, wantReaderVersion uint16) {
+func openZipBytes(t *testing.T, data []byte) *zip.Reader {
 	t.Helper()
-	const (
-		localHeaderSignature   = 0x04034b50
-		centralHeaderSignature = 0x02014b50
-	)
-	if len(data) < 30 {
-		t.Fatalf("ZIP too short: %d", len(data))
+
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("open ZIP bytes: %v", err)
 	}
-	if got := binary.LittleEndian.Uint32(data[:4]); got != localHeaderSignature {
-		t.Fatalf("local header signature = %#x", got)
-	}
-	if got := binary.LittleEndian.Uint16(data[4:6]); got != wantReaderVersion {
-		t.Fatalf("local reader version = %d, want %d", got, wantReaderVersion)
-	}
-	flags := binary.LittleEndian.Uint16(data[6:8])
-	if flags != 0 {
-		t.Fatalf("local flags = %#x, want 0", flags)
-	}
-	if method := binary.LittleEndian.Uint16(data[8:10]); method != zip.Store {
-		t.Fatalf("local method = %d, want Store", method)
-	}
-	nameLen := int(binary.LittleEndian.Uint16(data[26:28]))
-	extraLen := int(binary.LittleEndian.Uint16(data[28:30]))
-	if extraLen != 0 {
-		t.Fatalf("local extra length = %d, want 0", extraLen)
-	}
-	compressedSize := int(binary.LittleEndian.Uint32(data[18:22]))
-	centralOffset := 30 + nameLen + compressedSize
-	if centralOffset+46 > len(data) {
-		t.Fatalf("central header offset %d outside %d-byte ZIP", centralOffset, len(data))
-	}
-	if got := binary.LittleEndian.Uint32(data[centralOffset : centralOffset+4]); got != centralHeaderSignature {
-		t.Fatalf("central header signature = %#x", got)
-	}
-	if got := binary.LittleEndian.Uint16(data[centralOffset+4 : centralOffset+6]); got != wantCreatorVersion {
-		t.Fatalf("central creator version = %d, want %d", got, wantCreatorVersion)
-	}
-	if got := binary.LittleEndian.Uint16(data[centralOffset+6 : centralOffset+8]); got != wantReaderVersion {
-		t.Fatalf("central reader version = %d, want %d", got, wantReaderVersion)
-	}
-	if flags := binary.LittleEndian.Uint16(data[centralOffset+8 : centralOffset+10]); flags != 0 {
-		t.Fatalf("central flags = %#x, want 0", flags)
-	}
-	if extraLen := binary.LittleEndian.Uint16(data[centralOffset+30 : centralOffset+32]); extraLen != 0 {
-		t.Fatalf("central extra length = %d, want 0", extraLen)
-	}
+	return reader
 }
 
-func readZipFile(t *testing.T, file *zip.File) []byte {
-	t.Helper()
-	reader, err := file.Open()
-	if err != nil {
-		t.Fatal(err)
+func zipNames(reader *zip.Reader) []string {
+	names := make([]string, len(reader.File))
+	for i, file := range reader.File {
+		names[i] = file.Name
 	}
-	defer reader.Close()
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return data
-}
-
-func zipFileNames(files []*zip.File) []string {
-	names := make([]string, 0, len(files))
-	for _, file := range files {
-		names = append(names, file.Name)
-	}
-	sort.Strings(names)
 	return names
+}
+
+func readZipEntry(t *testing.T, reader *zip.Reader, name string) []byte {
+	t.Helper()
+
+	for _, file := range reader.File {
+		if file.Name != name {
+			continue
+		}
+		entry, err := file.Open()
+		if err != nil {
+			t.Fatalf("open ZIP entry %q: %v", name, err)
+		}
+		data, readErr := io.ReadAll(entry)
+		closeErr := entry.Close()
+		if readErr != nil {
+			t.Fatalf("read ZIP entry %q: %v", name, readErr)
+		}
+		if closeErr != nil {
+			t.Fatalf("close ZIP entry %q: %v", name, closeErr)
+		}
+		return data
+	}
+
+	t.Fatalf("ZIP entry %q not found", name)
+	return nil
 }
