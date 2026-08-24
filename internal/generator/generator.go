@@ -17,9 +17,10 @@ import (
 const CanaryPrefix = "[KCD2DS TEST] "
 
 var (
-	ErrInvalidRequest = errors.New("invalid generation request")
-	readRetailHUD     = gameassets.ReadHUD
-	patchRetailHUD    = gfxpatch.PatchHUDDirectHTMLAll
+	ErrInvalidRequest          = errors.New("invalid generation request")
+	readRetailHUD              = gameassets.ReadHUD
+	patchRetailHUD             = gfxpatch.PatchHUDDirectHTMLAll
+	patchRetailHUDReadability  = gfxpatch.PatchHUDDirectHTMLAllWithReadability
 )
 
 // Request describes one end-to-end mod generation operation. An empty
@@ -142,7 +143,16 @@ func Generate(request Request) (Result, error) {
 		if err != nil {
 			return Result{}, fmt.Errorf("read retail HUD from %s: %w", gameassets.GameDataPAKRelativePath, err)
 		}
-		derivedHUD, err = patchRetailHUD(retailHUD)
+		if presentation.Outline || presentation.Shadow {
+			derivedHUD, err = patchRetailHUDReadability(retailHUD, gfxpatch.HUDReadabilityConfig{
+				Outline: presentation.Outline,
+				Shadow:  presentation.Shadow,
+			})
+		} else {
+			// Preserve the already retail-proven patch path byte-for-byte when
+			// neither experimental readability effect is enabled.
+			derivedHUD, err = patchRetailHUD(retailHUD)
+		}
 		if err != nil {
 			return Result{}, fmt.Errorf("derive experimental HUD override: %w", err)
 		}
