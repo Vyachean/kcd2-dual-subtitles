@@ -231,7 +231,7 @@ func printGenerateUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
 	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style tagged|hud] [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style tagged|hud] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
-	fmt.Fprintf(output, "\nWithout --output, the Windows build installs into Documents\\kingdomcome_mods.\n")
+	fmt.Fprintf(output, "\nWithout --output, the Windows build resolves the install target from --game: standard PC layouts use <game-root>\\Mods; GDK layouts use Documents\\kingdomcome_mods.\n")
 	fmt.Fprintf(output, "--subtitle-style defaults to tagged. hud derives the styled HUD override from the installed game; differentiated remains accepted only for legacy diagnostics.\n")
 	fmt.Fprintf(output, "--canary-id is acceptance-only and visibly prefixes that localization row with [KCD2DS TEST].\n")
 	fmt.Fprintf(output, "Supported languages: %s\n", supportedLanguageNames())
