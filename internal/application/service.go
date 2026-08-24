@@ -55,12 +55,30 @@ func (s Service) InspectInstallation() (modinstall.Status, error) {
 	return s.inspect()
 }
 
-// GenerateAndInstall validates the selected game root and explicit language
-// choices, then performs the existing safe generator/install operation.
+// GenerateAndInstall preserves the existing non-HUD tagged GUI/application
+// behavior. Styled generation uses GenerateAndInstallWithPresentation.
 func (s Service) GenerateAndInstall(gameRoot string, main, secondary localization.Language) (generator.Result, error) {
+	return s.GenerateAndInstallWithPresentation(gameRoot, main, secondary, nil)
+}
+
+// GenerateAndInstallWithPresentation validates the selected game root,
+// explicit language choices and optional HUD presentation, then performs the
+// existing safe generator/install operation. A nil presentation preserves the
+// legacy tagged path; a non-nil presentation explicitly selects HUD mode.
+func (s Service) GenerateAndInstallWithPresentation(gameRoot string, main, secondary localization.Language, presentation *generator.HUDPresentationConfig) (generator.Result, error) {
 	if main == secondary {
 		return generator.Result{}, ErrSameLanguage
 	}
+
+	var normalizedPresentation *generator.HUDPresentationConfig
+	if presentation != nil {
+		normalized, err := generator.NormalizeHUDPresentationConfig(*presentation)
+		if err != nil {
+			return generator.Result{}, fmt.Errorf("validate subtitle presentation: %w", err)
+		}
+		normalizedPresentation = &normalized
+	}
+
 	normalized, err := s.ValidateGameRoot(gameRoot)
 	if err != nil {
 		return generator.Result{}, err
@@ -69,12 +87,17 @@ func (s Service) GenerateAndInstall(gameRoot string, main, secondary localizatio
 	if version == "" {
 		version = "dev"
 	}
-	result, err := s.generate(generator.Request{
+	request := generator.Request{
 		GameRoot:          normalized,
 		MainLanguage:      main,
 		SecondaryLanguage: secondary,
 		Version:           version,
-	})
+	}
+	if normalizedPresentation != nil {
+		request.SubtitleStyle = generator.SubtitleStyleHUD
+		request.HUDPresentation = normalizedPresentation
+	}
+	result, err := s.generate(request)
 	if err != nil {
 		return generator.Result{}, fmt.Errorf("generate and install: %w", err)
 	}

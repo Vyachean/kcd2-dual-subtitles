@@ -133,8 +133,8 @@ jobs:
               $title = $process.MainWindowTitle
             } while ([string]::IsNullOrWhiteSpace($title) -and (Get-Date) -lt $deadline)
 
-            if ($title -notlike "KCD2 Dual Subtitles*") {
-              throw "Native GUI window was not observed; title='$title'"
+            if ($title -notmatch '^KCD2 Dual Subtitles .+$') {
+              throw "Native GUI application window was not observed; title='$title'"
             }
           }
           finally {
