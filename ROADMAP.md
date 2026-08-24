@@ -1,131 +1,137 @@
-# KCD2 Dual Subtitles — development plan
+# KCD2 Dual Subtitles — roadmap
 
-## Goal
+## Product direction
 
-Build a small, dependency-light Windows tool that creates bilingual dialogue subtitles for Kingdom Come: Deliverance II from the localization files installed on the user's machine.
+KCD2 Dual Subtitles is a dependency-light Windows tool that builds bilingual dialogue subtitles from localization files already installed with Kingdom Come: Deliverance II.
 
-The first validated target is Russian + English on the Xbox / Microsoft Store PC build.
-
-For the detailed current v0.3 state, retail evidence, failed experiments, AVM1/CryPak lessons, and resume instructions, read [`docs/v0.3-development-handoff.md`](docs/v0.3-development-handoff.md) before starting a new implementation slice.
+The currently validated platform is KCD2 1.5.6 from Xbox / Microsoft Store on PC.
 
 ## Development rules
 
-1. Plan each implementation stage before changing production code.
-2. Keep `main` releasable; implementation work happens in branches and pull requests.
-3. All automated verification runs in GitHub Actions CI. Local test/build results are not acceptance evidence.
-4. Every behavior change gets automated coverage where practical.
-5. Prefer the Go standard library and keep dependencies minimal.
-6. Keep one Windows executable; CLI remains available even when a GUI frontend exists.
-7. Never modify the game's original localization files.
-8. Never commit or redistribute proprietary game localization/GFX assets.
-9. Manual in-game/UI checks are reserved for behavior CI cannot prove.
+1. Keep `main` releasable; production changes go through branches and pull requests.
+2. GitHub Actions is the automated acceptance source for formatting, tests, native Windows builds and release artifacts.
+3. Use synthetic fixtures in the repository; never commit or redistribute proprietary KCD2 localization or GFX assets.
+4. Never modify original game files.
+5. Fail closed when game UI/PAK structure is incompatible or when another mod supplies an unknown HUD override.
+6. Prefer the Go standard library and one Windows executable containing both GUI and CLI entrypoints.
+7. Treat live in-game behavior as a separate acceptance gate when CI cannot prove it.
 
-## v0.1 — complete
+## v0.1 — localization baseline
 
-- [x] Stage 0 — repository and CI bootstrap
-- [x] Stage 1 — localization model and synthetic fixtures
-- [x] Stage 2 — PAK/ZIP reader
-- [x] Stage 3 — robust dialogue XML parser
-- [x] Stage 4 — deterministic bilingual merge
-- [x] Stage 5 — mod archive builder
-- [x] Stage 6 — CLI UX
-- [x] Stage 7 — current KCD2 mod-format validation
-- [x] Stage 8 — Xbox / Microsoft Store retail acceptance
-- [x] Stage 9 — first stable release
+Status: **complete**. Stable release: `v0.1.0`.
 
-Stable release: `v0.1.0`.
+Delivered and retail-validated:
 
-## Accepted v0.1 runtime contract
+- localization PAK reading;
+- dialogue XML parsing;
+- deterministic bilingual merge;
+- patch-only localization PAK generation;
+- portable ZIP output;
+- Windows Documents installation and safe `mod_order.txt` integration;
+- ordinary and story/cutscene dialogue in the Xbox / Microsoft Store retail build.
 
-Stage 8 was completed with `v0.1.0-rc.4` on KCD2 1.5.6 Xbox / Microsoft Store.
+## v0.2 — native Windows usability
 
-Confirmed in the retail game:
+The v0.2 implementation was completed and published as an RC, then absorbed into the larger v0.3 release line instead of receiving a separate stable tag.
 
-- generated mod installed under the real Windows Documents Known Folder;
-- existing `mod_order.txt` enabled the mod correctly;
-- generated language PAK opened successfully;
-- `text_ui__kcd_dual_subtitles.xml` loaded as a localization patch;
-- ordinary NPC dialogue displayed both languages;
-- story/cutscene dialogue displayed both languages;
-- literal `\\n` rendered as a line break;
-- no observed CryPak/XML/localization errors attributable to the generated mod.
+Delivered:
 
-## v0.2 — usability
+- Xbox / Microsoft Store autodetection;
+- `.GamingRoot` custom-root discovery;
+- manual Browse fallback;
+- native Win32 GUI;
+- explicit language selectors;
+- Generate / Regenerate / Uninstall;
+- safe own-mod removal and load-order cleanup;
+- preserved CLI and portable ZIP mode;
+- native Windows CI/build/smoke coverage.
 
-Tracked by issue #36.
+Issue #36 is historical/superseded by the v0.3 stable release.
 
-Goal: normal Windows use should require no console commands while keeping the proven v0.1 generation/mod format unchanged.
+## v0.3 — stable fixed-pair styled subtitles
 
-Implementation status:
+Status: **release-ready** after the v0.3 RC retail acceptance cycle.
 
-- [x] Xbox / Microsoft Store KCD2 autodetection across fixed drives;
-- [x] best-effort custom Xbox game-root discovery through `.GamingRoot`;
-- [x] validated manual `Browse...` fallback;
-- [x] application service above generator/installer internals;
-- [x] safe generated-mod uninstall and `mod_order.txt` cleanup;
-- [x] minimal native Win32 GUI with explicit main/secondary language selectors;
-- [x] Generate and install / Regenerate state;
-- [x] Uninstall state;
-- [x] preserve all existing CLI commands and portable ZIP mode;
-- [x] Windows no-argument launch opens GUI while explicit CLI commands keep normal console semantics;
-- [x] full Linux/native-Windows CI plus CLI/GUI smoke tests on the release binary;
-- [x] publish `v0.2.0-rc.1` through release-candidate CI;
-- [ ] manually exercise autodetection, Browse, generation/regeneration and uninstall on the validated Xbox environment;
-- [ ] publish stable `v0.2.0` only after that manual acceptance.
+The stable v0.3 contract is intentionally a **generation-time fixed pair**, not the larger runtime-language architecture originally explored in #39.
 
-Explicitly out of scope for v0.2:
+### Languages and generation
 
-- automatic language inference/selection;
-- Steam/GOG/Epic autodetection or compatibility claims;
+- [x] explicit metadata for the current known KCD2 PC localization PAK set;
+- [x] show only supported languages actually installed with the selected game root;
+- [x] English-first neutral GUI default instead of a Russian-specific default;
+- [x] selected Main/Secondary languages are text sources only;
+- [x] generated localization patches are emitted for every supported installed game-language slot, so the selected pair works independently of KCD2's current text language;
+- [x] preserve identical/missing/empty translation fallbacks;
+- [x] safe portable ZIP and automatic installation paths.
+
+### Styled HUD presentation
+
+- [x] derive `hud.gfx` from the user's installed game instead of shipping proprietary UI assets;
+- [x] deterministic semantic AVM1 patching with fail-closed anchors and idempotence;
+- [x] standard bottom subtitle path;
+- [x] overhead NPC bubble path;
+- [x] primary color, optional size and italic;
+- [x] secondary color, size and italic;
+- [x] language tags on/off;
+- [x] native Windows color picker;
+- [x] common outline on/off;
+- [x] common shadow on/off;
+- [x] preserve the proven legacy tagged path when appearance customization is disabled;
+- [x] foreign HUD conflict detection.
+
+### Windows installation robustness
+
+- [x] real Windows Documents Known Folder;
+- [x] redirected/OneDrive Documents support;
+- [x] bounded retry around Windows rename/sharing failures;
+- [x] guarded copy fallback for cloud-backed Documents when rename remains unavailable;
+- [x] staged replacement and rollback;
+- [x] safe existing `mod_order.txt` preservation;
+- [x] safe uninstall.
+
+### Retail acceptance established during v0.3 RCs
+
+- [x] ordinary styled bottom subtitles;
+- [x] overhead styled bubbles;
+- [x] secondary color/size/italic visibly render;
+- [x] forced centering removed after it was shown to disturb dialogue-choice layout;
+- [x] presentation GUI works in the retail environment;
+- [x] language pair is independent of the game's active text language (for example Czech + German while KCD2 remains English);
+- [x] outline/shadow path accepted in the retail test cycle.
+
+## Known v0.3 limitations / future work
+
+### Narrative/cinematic captions — #54
+
+Some standalone narrative captions use the separate:
+
+```text
+fc_setNarrativeSubtitles(text, layout, fadeIn)
+```
+
+path rather than the proven `fc_setSubtitles` / `fc_setBubbleText` paths. This remains a future, research-first change. Do not guess its TextField/geometry/fade contract from the existing patchers.
+
+### Runtime secondary-language switching and in-game settings — #39
+
+The original v0.3 research issue described a larger architecture where one installed universal mod would switch secondary language/style inside KCD2.
+
+That work is **not part of stable v0.3.0**. Future work should still begin with the narrow retail proof that a project-owned generated localization key can be resolved safely through `TextExtension.translateString`, then proceed to runtime session state and Menu.gfx integration only if that proof succeeds.
+
+No KCSE, MCM, LuaDB, ASI loader or `dinput8.dll` dependency is planned for the Xbox-first baseline.
+
+### Presentation preview
+
+A live/approximate preview was deliberately deferred from v0.3.0. If implemented later, it should remain an approximation and must not become a second source of formatting rules.
+
+### Other possible future work
+
+- Steam/GOG/Epic autodetection and explicit retail validation;
+- additional bilingual categories such as quests, items, tutorials or codex;
+- persisted presentation profiles;
 - application self-update;
-- persistent settings/history;
-- custom Scaleform subtitle UI;
-- Authenticode certificate acquisition.
+- Authenticode signing;
+- third-party translation inputs.
 
-## v0.3 — styled subtitles and runtime secondary language
+## Engineering continuity
 
-Primary plan: issue #39. Detailed continuity notes: [`docs/v0.3-development-handoff.md`](docs/v0.3-development-handoff.md).
-
-### Retail-proven foundation
-
-- [x] deterministic derived HUD override from the user's installed `hud.gfx` without shipping proprietary GFX;
-- [x] CryPak-compatible generated Data PAK;
-- [x] standard bottom subtitle styling through post-vanilla `htmlText` restoration;
-- [x] overhead NPC bubble styling through its separate retail render path;
-- [x] secondary color, italic, and independent smaller size visibly render in KCD2 retail;
-- [x] forced `<p align='center'>` removed after it was proven to disturb dialogue-choice layout;
-- [x] `v0.3.0-rc.10` live check confirmed normal dialogue-choice alignment after removing forced centering.
-
-### Current active work
-
-- [ ] #55 Stage 2 — generator-owned presentation options: secondary color, size, italic, tags on/off;
-- [ ] #55 Stage 3 — expose the same presentation configuration in the native Windows GUI, with no duplicate formatting implementation;
-- [ ] #54 — support the separate narrative/cinematic subtitle path (`fc_setNarrativeSubtitles`), including the opening caption case such as `Несколько недель назад`;
-- [ ] #39 — live-prove project-owned namespaced localization lookup through retail `TextExtension.translateString`;
-- [ ] #39 — generate universal available-language data instead of one fixed secondary pair;
-- [ ] #39 — runtime session state for secondary language/style, including Off and safe fallbacks;
-- [ ] #39 — in-game Menu.gfx settings page after runtime lookup/state is proven;
-- [ ] #39 — installer/updater integration for the universal runtime mod;
-- [ ] full retail acceptance and stable v0.3 release.
-
-Important architecture note: the current direct localization HTML is a successful retail proof/interim fixed-pair mode, but it is not the final runtime-language transport because the same localization rows are also consumed by dialogue-choice UI. Final runtime styling should be applied inside subtitle render paths.
-
-## Later work
-
-Potential later features include:
-
-- additional bilingual UI categories such as quests, items, skills, tutorials, or encyclopedia;
-- broader Steam/GOG/Epic live validation;
-- Authenticode code signing;
-- third-party translation patch inputs;
-- retail-safe persistence if a dependency-free mechanism is demonstrated.
-
-## Workflow for each stage
-
-1. Write/update the stage plan and acceptance criteria first.
-2. Create a dedicated branch and PR.
-3. Implement the smallest coherent change.
-4. Use GitHub Actions CI for all automated checks/builds.
-5. Fix CI failures in the same PR.
-6. Record manual acceptance separately where required.
-7. Merge only when required CI is green.
+For the detailed HUD/AVM1 evidence, failed RC experiments and exact future constraints, see [`docs/v0.3-development-handoff.md`](docs/v0.3-development-handoff.md).

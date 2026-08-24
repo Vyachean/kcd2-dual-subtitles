@@ -1,187 +1,243 @@
 # KCD2 Dual Subtitles
 
-A lightweight Windows tool that generates and installs bilingual dialogue subtitles for Kingdom Come: Deliverance II from localization files already installed with the game.
+KCD2 Dual Subtitles is a small Windows tool that generates and installs bilingual dialogue subtitles for **Kingdom Come: Deliverance II** from localization files already present in the user's game installation.
+
+It does not redistribute KCD2 localization or UI assets and does not modify the original game files.
 
 ## Status
 
-Stable `v0.1.0` was validated in the retail **Kingdom Come: Deliverance II 1.5.6 Xbox / Microsoft Store PC build**.
+The v0.3 feature set has been live-tested on **Kingdom Come: Deliverance II 1.5.6, Xbox / Microsoft Store PC**.
 
-Confirmed in live testing:
+Retail-tested behavior includes:
 
-- ordinary NPC dialogue shows both languages;
-- story/cutscene dialogue shows both languages;
-- the two languages render on separate lines;
-- the generated `text_ui__kcd_dual_subtitles.xml` localization patch is loaded by the game;
-- the generated CryPak produces no observed CryPak/XML/localization errors;
-- automatic installation works with a redirected OneDrive Documents folder and an existing `mod_order.txt`.
+- ordinary bottom dialogue subtitles with two selected languages;
+- story/cutscene dialogue using the normal subtitle path;
+- overhead NPC subtitle bubbles;
+- selectable installed-language pairs, including Czech + German while the game's own text language remained English;
+- configurable primary and secondary subtitle presentation;
+- optional language tags, italic, outline and shadow;
+- native color selection;
+- safe regeneration and installation through the Windows Documents folder.
 
-`v0.2` adds a native Windows GUI, Xbox / Microsoft Store game autodetection, regeneration and safe uninstall. The new GUI/autodetection flow remains release-candidate functionality until it is manually exercised on the validated Xbox environment.
+Steam, GOG and Epic are not currently auto-detected or claimed as live-validated targets. Manual game-folder selection may still be used where the same KCD2 file layout is available.
 
-Steam, GOG, and Epic have not yet been live-validated and are not automatically detected.
+## Windows GUI
 
-## Subtitle format
-
-Bilingual rows are labeled so the languages are easy to distinguish:
-
-```text
-[RU] Русский текст
-[EN] English text
-```
-
-If English is selected as the main language, the order is reversed:
+Run or double-click:
 
 ```text
-[EN] English text
-[RU] Русский текст
+kcd2-dual-subtitles.exe
 ```
 
-Identical translations and single-language fallback rows remain untagged.
+The native Win32 application provides:
 
-Russian and English are currently supported.
+- Xbox / Microsoft Store KCD2 autodetection;
+- `Browse...` fallback for manual game-folder selection;
+- Main and Secondary subtitle language selectors;
+- optional styled subtitle presentation;
+- primary color, size and italic controls;
+- secondary color, size and italic controls;
+- native Windows color pickers;
+- language tags on/off;
+- outline on/off;
+- shadow on/off;
+- Generate / Regenerate;
+- Uninstall;
+- operation status and native error messages.
 
-## Normal Windows use
+When no previous valid selection is available, the GUI prefers **English as Main** when installed and chooses the first other installed supported language as Secondary. It never silently selects the same language twice.
 
-Run `kcd2-dual-subtitles.exe` normally or double-click it.
+### Styled subtitles
 
-On Windows with no command-line arguments, a small native Win32 window opens. It provides:
+When appearance customization is disabled, the tool keeps the simple tagged bilingual format:
 
-- automatically detected KCD2 game folder when exactly one Xbox / Microsoft Store installation is found;
-- `Browse...` fallback for manual selection;
-- Main language selector;
-- Secondary language selector;
-- `Generate and install` / `Regenerate`;
-- `Uninstall`;
-- operation status and errors.
+```text
+[EN] Primary text
+[DE] Secondary text
+```
 
-The default selections are Russian main + English secondary. The application does not infer or automatically swap languages; the two selections must differ.
+When appearance customization is enabled, the generator creates the bilingual HTML consumed by KCD2's Scaleform HUD. Primary and secondary lines can be styled independently for color, size and italic treatment. Outline and shadow are common readability effects applied to the complete subtitle field.
 
-### Xbox / Microsoft Store autodetection
+Leaving primary color or size blank preserves the game's default primary property.
 
-Current Microsoft GDK flat-file games are searched in Xbox game roots on fixed Windows drives. The detector checks the default `<drive>:\XboxGames` root and best-effort custom roots recorded by `.GamingRoot`.
+The derived HUD path is generated from the user's installed `hud.gfx`; the project does not ship a prebuilt proprietary HUD file.
 
-Only immediate game directories are inspected; the application does not recursively search whole disks. A candidate is accepted only when the expected KCD2 structure is present, including the supported localization PAKs and core Data PAKs.
+## Supported languages
 
-If no unique installation can be determined, choose the game folder manually. `Browse...` accepts either:
+The tool has explicit metadata for the current known KCD2 PC localization PAK set and shows only languages actually present in the selected installation:
+
+- English
+- Italian
+- French
+- German
+- Spanish
+- Czech
+- Japanese
+- Korean
+- Polish
+- Portuguese (Brazil)
+- Chinese (Simplified)
+- Chinese (Traditional)
+- Turkish
+- Russian
+- Ukrainian
+- Vietnamese
+
+Unknown future localization PAK names are ignored rather than guessed.
+
+## Game language is independent from the selected pair
+
+Main and Secondary are **subtitle text sources**, not the language slot that KCD2 must currently be using.
+
+The generated localization patch is written under every supported localization PAK present in the selected installation. For example, a Czech + German subtitle pair continues to work while KCD2 itself is configured to use English text.
+
+## Game folder selection
+
+The Xbox / Microsoft Store detector searches fixed Windows drives, including the default `<drive>:\XboxGames` roots and best-effort custom roots described by `.GamingRoot`.
+
+Only plausible immediate game directories are inspected; the tool does not recursively crawl entire disks.
+
+`Browse...` accepts either the KCD2 `Content` directory or its immediate parent, for example:
 
 ```text
 ...\Kingdom Come- Deliverance II\Content
 ```
 
-or its immediate parent directory.
+## Generated mod
 
-## Generated mod installation
-
-The Windows build installs into the real Windows **Documents Known Folder**:
+Automatic installation uses the real Windows **Documents Known Folder**:
 
 ```text
 <Documents>\kingdomcome_mods\kcd_dual_subtitles\
 ```
 
-Redirected and OneDrive Documents folders are supported through the Windows Known Folders API; the tool does not assume `%USERPROFILE%\Documents`.
+Redirected and OneDrive-backed Documents folders are supported. Normal publication uses same-volume rename semantics; a guarded copy fallback is available for cloud-backed filesystem cases where Windows repeatedly refuses the final rename.
 
-The generated mod contains:
+A styled installation has the following shape:
 
 ```text
 kcd_dual_subtitles\
 ├── mod.manifest
-└── Localization\
-    └── <main-language>_xml.pak
-        └── text_ui__kcd_dual_subtitles.xml
+├── Localization\
+│   ├── English_xml.pak
+│   ├── German_xml.pak
+│   └── ... one generated patch PAK for each supported installed language slot
+└── Data\
+    └── kcd_dual_subtitles.pak
+        └── Libs/UI/hud.gfx
 ```
 
-If `Documents\kingdomcome_mods\mod_order.txt` already exists, installation ensures `kcd_dual_subtitles` is listed without reordering or deleting unrelated mods. If the file does not exist, the tool does not create it.
+The generated localization PAKs contain only the project's patch resource and changed dialogue rows. The generated Data PAK contains a deterministic transformation of the user's installed retail HUD when styled mode is enabled.
 
-The original game localization PAKs are never modified.
+The original files under the KCD2 installation are never overwritten.
 
-## Regenerate after game updates
+## Other HUD mods
 
-The generator reads the currently installed localization files every time it runs. After KCD2 updates localization data, open the application and use `Regenerate` to rebuild the patch from the current PAKs.
+Styled mode needs to supply `Libs/UI/hud.gfx`. The installer therefore checks installed mods for another HUD override and fails closed instead of silently overwriting or composing an unknown foreign HUD.
 
-Replacement is staged so a failed generation does not publish a partial new mod.
+If another mod replaces the KCD2 HUD, remove the conflict or use the non-styled tagged mode.
+
+## `mod_order.txt`
+
+If `<Documents>\kingdomcome_mods\mod_order.txt` already exists, installation ensures `kcd_dual_subtitles` is present while preserving unrelated entries and their order.
+
+The tool does not create `mod_order.txt` when it is absent.
+
+## Regenerate after KCD2 updates
+
+The generator reads the currently installed localization and HUD assets each time it runs. After a KCD2 update, run the application again and use **Regenerate** so the mod is rebuilt from the current game files.
+
+Generation and replacement are staged. A failed build is not published as a successful new installation.
 
 ## Uninstall
 
-Use the GUI `Uninstall` button.
-
-It removes only:
+The GUI `Uninstall` action removes only:
 
 ```text
 <Documents>\kingdomcome_mods\kcd_dual_subtitles
 ```
 
-and removes only `kcd_dual_subtitles` entries from an existing `mod_order.txt`. Other mod entries and their order are preserved. The tool does not create `mod_order.txt` during uninstall.
+and removes only this project's entries from an existing `mod_order.txt`. Other mods and their load-order entries are left alone.
 
 ## CLI
 
-The existing CLI remains available for scripting, portable ZIP generation and diagnostics.
+The same executable keeps a CLI for scripting, diagnostics and portable ZIP generation.
 
-Russian first, English second:
-
-```text
-kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main Russian --secondary English
-```
-
-English first, Russian second:
+Example:
 
 ```text
-kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary Russian
+kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary German
 ```
 
-Portable ZIP instead of automatic installation:
+Use the default tagged format:
 
 ```text
-kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --output "kcd2-dual-subtitles.zip"
+kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary German --subtitle-style tagged
 ```
 
-Other preserved CLI entrypoints:
+Use the styled HUD defaults:
+
+```text
+kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary German --subtitle-style hud
+```
+
+Create a portable ZIP instead of installing:
+
+```text
+kcd2-dual-subtitles.exe generate --game "C:\path\to\Content" --main English --secondary German --output "kcd2-dual-subtitles.zip"
+```
+
+Other entrypoints:
 
 ```text
 kcd2-dual-subtitles.exe --help
 kcd2-dual-subtitles.exe --version
 ```
 
-The acceptance-only `--canary-id` option also remains available for controlled localization diagnostics.
+`--canary-id` remains an acceptance/debugging option and should not be used for normal generation.
 
-## Main language and KCD2 language
+## Known limitations
 
-The game's currently selected text language should match the generated **main** language so KCD2 opens the corresponding mod localization PAK.
+- v0.3 uses a **generation-time fixed language pair**; there is no in-game secondary-language switch yet;
+- standalone narrative/cinematic captions routed through `fc_setNarrativeSubtitles` are not yet handled by the proven standard/bubble HUD transformations and may remain single-language or unstyled;
+- dialogue localization comes from `text_ui_dialog.xml`; items, quests, tutorials, codex and general UI text are outside the current scope;
+- Steam/GOG/Epic autodetection and live compatibility acceptance are not implemented;
+- the executable is not Authenticode-signed;
+- there is no application self-update or persisted presentation profile.
+
+Future runtime-language/in-game-settings work is tracked separately from the stable v0.3 fixed-pair contract.
 
 ## Troubleshooting
 
-KCD2 writes `kcd.log` in the Windows Documents folder used by the game. A successful localization-patch load contains:
+KCD2 writes `kcd.log` in the Windows Documents folder used by the game. A successfully loaded localization patch includes a line similar to:
 
 ```text
 [Mod] Loading localization patch 'Localization\text_ui__kcd_dual_subtitles.xml'
 ```
 
-Useful failure indicators include CryPak errors such as `ReadFile returned 15`, XML parse failures, or the absence of the mod/localization patch from the log.
+Useful failure indicators include CryPak errors such as `ReadFile returned 15`, XML parse failures, missing mod/localization load messages, or an explicit foreign-HUD conflict reported by the installer.
 
-Do not upload or commit full proprietary game localization files when reporting an issue.
+Do not upload or commit full proprietary KCD2 localization or GFX files when reporting an issue.
 
 ## Microsoft Defender SmartScreen
 
-The executable is currently **not Authenticode-signed**. Windows may therefore show Microsoft Defender SmartScreen reputation warnings for a newly downloaded build.
+Release binaries are currently **not Authenticode-signed**, so Windows may show a Microsoft Defender SmartScreen reputation warning for a newly downloaded executable.
 
-The project does not attempt to bypass Windows security checks. Stable/release-candidate binaries are built by GitHub Actions and published with `SHA256SUMS.txt` so the downloaded file can be verified against the corresponding release.
+Release and release-candidate binaries are built by GitHub Actions and published with `SHA256SUMS.txt`.
 
-If Microsoft Defender Antivirus reports an actual named malware/threat detection rather than a SmartScreen reputation warning, report the exact detection name and release version for separate false-positive/security investigation instead of disabling protection.
-
-## Current limitations
-
-- Russian + English only;
-- dialogue localization from `text_ui_dialog.xml` only;
-- no bilingual item names, quest text, tutorials, codex, or general UI text;
-- language separation is text-based (`[RU]` / `[EN]`), not a custom Scaleform subtitle UI;
-- Xbox / Microsoft Store is the only live-validated store target;
-- Steam/GOG/Epic autodetection is not implemented;
-- executable is currently unsigned;
-- no application self-update or persistent settings.
+If Microsoft Defender Antivirus reports an actual named malware/threat detection rather than a SmartScreen reputation warning, report the exact detection name and release version. Do not disable protection as a workaround.
 
 ## Development
 
-The project uses Go 1.27 and the standard library wherever practical. The Windows GUI uses Win32 APIs directly and does not require Wails, React, Node or WebView.
+The project uses Go 1.27 and the standard library wherever practical. The Windows GUI uses Win32 directly; there is no Wails, React, Node or WebView runtime.
 
-All automated acceptance checks, Windows tests, builds, checksums, and release publication run through GitHub Actions. Local test/build results are not used as merge or release acceptance evidence.
+Automated acceptance, native Windows tests/builds, checksums and release publication run through GitHub Actions. Real KCD2 files are never committed; parser/patcher tests use synthetic fixtures.
+
+See:
+
+- [`ROADMAP.md`](ROADMAP.md) for current and future scope;
+- [`docs/mod-format.md`](docs/mod-format.md) for the generated KCD2 mod/PAK contract;
+- [`docs/v0.3-development-handoff.md`](docs/v0.3-development-handoff.md) for engineering continuity and retail evidence.
 
 ## License
 

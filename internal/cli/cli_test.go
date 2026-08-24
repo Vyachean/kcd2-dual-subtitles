@@ -61,7 +61,7 @@ func TestRunRejectsUnknownCommandAndMissingGame(t *testing.T) {
 	})
 }
 
-func TestRunGenerateDefaultsToInstallAndRussianEnglish(t *testing.T) {
+func TestRunGenerateDefaultsToInstallAndNeutralLanguages(t *testing.T) {
 	var gotRequest generator.Request
 	fakeGenerate := func(request generator.Request) (generator.Result, error) {
 		gotRequest = request
@@ -80,8 +80,8 @@ func TestRunGenerateDefaultsToInstallAndRussianEnglish(t *testing.T) {
 	if exitCode != ExitSuccess {
 		t.Fatalf("exit code = %d, want %d; stderr=%q", exitCode, ExitSuccess, stderr.String())
 	}
-	if gotRequest.MainLanguage != localization.Russian || gotRequest.SecondaryLanguage != localization.English {
-		t.Fatalf("languages = %q/%q, want Russian/English", gotRequest.MainLanguage, gotRequest.SecondaryLanguage)
+	if gotRequest.MainLanguage != localization.English || gotRequest.SecondaryLanguage != localization.Italian {
+		t.Fatalf("languages = %q/%q, want English/Italian", gotRequest.MainLanguage, gotRequest.SecondaryLanguage)
 	}
 	if gotRequest.OutputPath != "" {
 		t.Fatalf("OutputPath = %q, want install mode", gotRequest.OutputPath)
@@ -210,8 +210,8 @@ func TestInteractiveDefaultsToInstallAndNormalizesQuotedGamePath(t *testing.T) {
 	if gotRequest.GameRoot != gameRoot {
 		t.Fatalf("GameRoot = %q, want %q", gotRequest.GameRoot, gameRoot)
 	}
-	if gotRequest.MainLanguage != localization.Russian || gotRequest.SecondaryLanguage != localization.English {
-		t.Fatalf("languages = %q/%q, want Russian/English", gotRequest.MainLanguage, gotRequest.SecondaryLanguage)
+	if gotRequest.MainLanguage != localization.English || gotRequest.SecondaryLanguage != localization.Italian {
+		t.Fatalf("languages = %q/%q, want English/Italian", gotRequest.MainLanguage, gotRequest.SecondaryLanguage)
 	}
 	if gotRequest.OutputPath != "" {
 		t.Fatalf("OutputPath = %q, want install mode", gotRequest.OutputPath)
@@ -243,6 +243,7 @@ func makeValidGameRoot(t *testing.T) string {
 	}
 	writeDialoguePAK(t, filepath.Join(localizationDir, "Russian_xml.pak"), `<Table><Row><Cell>id</Cell><Cell>source</Cell><Cell>Привет.</Cell></Row></Table>`)
 	writeDialoguePAK(t, filepath.Join(localizationDir, "English_xml.pak"), `<Table><Row><Cell>id</Cell><Cell>source</Cell><Cell>Hello.</Cell></Row></Table>`)
+	writeDialoguePAK(t, filepath.Join(localizationDir, "Italian_xml.pak"), `<Table><Row><Cell>id</Cell><Cell>source</Cell><Cell>Ciao.</Cell></Row></Table>`)
 	return gameRoot
 }
 
