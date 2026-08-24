@@ -79,8 +79,17 @@ func TestGenerateHUDPrototypeDerivesAndPackagesHUD(t *testing.T) {
 	if len(rows) != 1 || rows[0].ID != "different" {
 		t.Fatalf("patch rows = %#v, want only different row", rows)
 	}
-	if !strings.HasPrefix(rows[0].Text, subtitlepayload.Prefix+"[EN] Secondary"+subtitlepayload.Suffix) || !strings.HasSuffix(rows[0].Text, "[RU] Основной") {
-		t.Fatalf("HUD payload row = %q, want hidden EN payload + visible RU primary", rows[0].Text)
+	for _, want := range []string{
+		"<p align='center'>[RU] Основной",
+		"<font color='" + subtitlepayload.SecondaryColor + "' size='24'><i>[EN] Secondary</i></font>",
+		"</p>",
+	} {
+		if !strings.Contains(rows[0].Text, want) {
+			t.Fatalf("HUD HTML row = %q, missing %q", rows[0].Text, want)
+		}
+	}
+	if strings.Contains(rows[0].Text, subtitlepayload.Prefix) || strings.Contains(rows[0].Text, subtitlepayload.Suffix) {
+		t.Fatalf("HUD HTML row unexpectedly contains carrier sentinel: %q", rows[0].Text)
 	}
 }
 
