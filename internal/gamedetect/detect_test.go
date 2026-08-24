@@ -8,17 +8,17 @@ import (
 	"testing"
 )
 
-func TestDetectInXboxRootsFindsValidContentRootsDeterministically(t *testing.T) {
+func TestDetectInInstallRootsFindsValidContentRootsDeterministically(t *testing.T) {
 	base := t.TempDir()
-	rootA := filepath.Join(base, "XboxA")
-	rootB := filepath.Join(base, "XboxB")
+	rootA := filepath.Join(base, "LibraryA")
+	rootB := filepath.Join(base, "LibraryB")
 	gameZ := createGameLayout(t, rootA, "Zeta")
 	gameA := createGameLayout(t, rootB, "Alpha")
 	if err := os.MkdirAll(filepath.Join(rootA, "NotKCD2", "Content", "Localization"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	got := detectInXboxRoots([]string{rootA, rootB, rootA})
+	got := detectInInstallRoots([]string{rootA, rootB, rootA})
 	want := []string{gameZ, gameA}
 	if !reflect.DeepEqual(got.Candidates, want) {
 		t.Fatalf("Candidates = %#v, want %#v", got.Candidates, want)
@@ -28,16 +28,16 @@ func TestDetectInXboxRootsFindsValidContentRootsDeterministically(t *testing.T) 
 	}
 }
 
-func TestDetectInXboxRootsUniqueAndMissing(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "XboxGames")
+func TestDetectInInstallRootsUniqueAndMissing(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "Games")
 	game := createGameLayout(t, root, "Kingdom Come")
 
-	got := detectInXboxRoots([]string{root})
+	got := detectInInstallRoots([]string{root})
 	if unique, ok := got.Unique(); !ok || unique != game {
 		t.Fatalf("Unique() = %q, %v; want %q, true", unique, ok, game)
 	}
 
-	missing := detectInXboxRoots([]string{filepath.Join(t.TempDir(), "missing")})
+	missing := detectInInstallRoots([]string{filepath.Join(t.TempDir(), "missing")})
 	if len(missing.Candidates) != 0 {
 		t.Fatalf("missing candidates = %#v, want none", missing.Candidates)
 	}
@@ -48,7 +48,7 @@ func TestDetectInXboxRootsUniqueAndMissing(t *testing.T) {
 
 func TestNormalizeSelectionAcceptsContentOrParent(t *testing.T) {
 	parent := filepath.Join(t.TempDir(), "Kingdom Come")
-	content := createGameLayoutAtContent(t, filepath.Join(parent, "Content"))
+	content := createGameLayoutAtContent(t, filepath.Join(parent, "Content"), "English_xml.pak", "Italian_xml.pak")
 
 	for _, input := range []string{content, parent, `"` + parent + `"`} {
 		got, err := NormalizeSelection(input)
@@ -61,6 +61,24 @@ func TestNormalizeSelectionAcceptsContentOrParent(t *testing.T) {
 	}
 }
 
+func TestIsGameRootDoesNotRequireEnglishOrRussian(t *testing.T) {
+	content := createGameLayoutAtContent(t, filepath.Join(t.TempDir(), "Content"), "German_xml.pak", "Czech_xml.pak")
+	if !IsGameRoot(content) {
+		t.Fatal("German/Czech-only compatible layout was rejected")
+	}
+}
+
+func TestIsGameRootRequiresTwoKnownInstalledLanguages(t *testing.T) {
+	content := filepath.Join(t.TempDir(), "Content")
+	writeCoreFiles(t, content)
+	writeFixtureFile(t, filepath.Join(content, "Localization", "German_xml.pak"))
+	writeFixtureFile(t, filepath.Join(content, "Localization", "FutureLanguage_xml.pak"))
+
+	if IsGameRoot(content) {
+		t.Fatal("layout with only one known supported language was accepted")
+	}
+}
+
 func TestNormalizeSelectionRejectsInvalidLayout(t *testing.T) {
 	_, err := NormalizeSelection(t.TempDir())
 	if !errors.Is(err, ErrInvalidGameRoot) {
@@ -68,25 +86,37 @@ func TestNormalizeSelectionRejectsInvalidLayout(t *testing.T) {
 	}
 }
 
-func createGameLayout(t *testing.T, xboxRoot, name string) string {
+func createGameLayout(t *testing.T, installRoot, name string) string {
 	t.Helper()
-	return createGameLayoutAtContent(t, filepath.Join(xboxRoot, name, "Content"))
+	return createGameLayoutAtContent(t, filepath.Join(installRoot, name, "Content"), "English_xml.pak", "Italian_xml.pak")
 }
 
-func createGameLayoutAtContent(t *testing.T, content string) string {
+func createGameLayoutAtContent(t *testing.T, content string, languagePAKs ...string) string {
 	t.Helper()
-	for _, relative := range requiredRelativeFiles {
-		path := filepath.Join(content, relative)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("MkdirAll(%q): %v", path, err)
-		}
-		if err := os.WriteFile(path, []byte("fixture"), 0o644); err != nil {
-			t.Fatalf("WriteFile(%q): %v", path, err)
-		}
+	writeCoreFiles(t, content)
+	for _, filename := range languagePAKs {
+		writeFixtureFile(t, filepath.Join(content, "Localization", filename))
 	}
 	absolute, err := filepath.Abs(content)
 	if err != nil {
 		t.Fatalf("Abs(%q): %v", content, err)
 	}
 	return filepath.Clean(absolute)
+}
+
+func writeCoreFiles(t *testing.T, content string) {
+	t.Helper()
+	for _, relative := range requiredCoreFiles {
+		writeFixtureFile(t, filepath.Join(content, relative))
+	}
+}
+
+func writeFixtureFile(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q): %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte("fixture"), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", path, err)
+	}
 }
