@@ -25,26 +25,40 @@ var requiredBubbleHUDAnchors = []string{
 
 // PatchHUDDirectHTMLAll applies the accepted bottom-screen subtitle HTML patch
 // first and then the equivalent post-vanilla HTML path for overhead NPC
-// bubbles. Keeping the two transformations separate makes each one independently
-// fail-closed and preserves the already live-proven fc_setSubtitles behavior.
+// bubbles without changing TextField readability properties.
 func PatchHUDDirectHTMLAll(input []byte) ([]byte, error) {
-	patched, err := PatchHUDDirectHTML(input)
+	return PatchHUDDirectHTMLAllWithReadability(input, HUDReadabilityConfig{})
+}
+
+// PatchHUDDirectHTMLAllWithReadability applies the direct-HTML path to standard
+// subtitles and overhead bubbles with the same optional whole-TextField
+// readability effects. Keeping the two transformations separate makes each one
+// independently fail-closed and preserves their retail lifecycle/geometry.
+func PatchHUDDirectHTMLAllWithReadability(input []byte, readability HUDReadabilityConfig) ([]byte, error) {
+	patched, err := PatchHUDDirectHTMLWithReadability(input, readability)
 	if err != nil {
 		return nil, err
 	}
-	patched, err = PatchHUDBubbleDirectHTML(patched)
+	patched, err = PatchHUDBubbleDirectHTMLWithReadability(patched, readability)
 	if err != nil {
 		return nil, fmt.Errorf("patch overhead subtitle bubbles: %w", err)
 	}
 	return patched, nil
 }
 
-// PatchHUDBubbleDirectHTML rewrites the retail fc_setBubbleText function so
-// the original localization HTML is restored after vanilla text processing and
-// global sizing. The retail function remains authoritative for wrapping,
-// depth/distance behavior and normal bubble lifecycle; only the final TextField
-// content, vertical offset and background measurement are refreshed.
+// PatchHUDBubbleDirectHTML rewrites the retail bubble function using the
+// accepted direct-HTML path without changing TextField readability properties.
 func PatchHUDBubbleDirectHTML(input []byte) ([]byte, error) {
+	return PatchHUDBubbleDirectHTMLWithReadability(input, HUDReadabilityConfig{})
+}
+
+// PatchHUDBubbleDirectHTMLWithReadability rewrites the retail fc_setBubbleText
+// function so the original localization HTML is restored after vanilla text
+// processing and global sizing. The retail function remains authoritative for
+// wrapping, depth/distance behavior and normal bubble lifecycle; only the final
+// TextField content, optional readability properties, vertical offset and
+// background measurement are refreshed.
+func PatchHUDBubbleDirectHTMLWithReadability(input []byte, readability HUDReadabilityConfig) ([]byte, error) {
 	decoded, err := decodeContainer(input)
 	if err != nil {
 		return nil, err
@@ -90,7 +104,7 @@ func PatchHUDBubbleDirectHTML(input []byte) ([]byte, error) {
 	}
 
 	actions := decoded.body[target.payloadStart:target.payloadEnd]
-	rewritten, rewrittenCount, err := rewriteBubbleDirectHTMLActions(actions)
+	rewritten, rewrittenCount, err := rewriteBubbleDirectHTMLActions(actions, readability)
 	if err != nil {
 		return nil, fmt.Errorf("rewrite %s direct HTML: %w", bubbleFunction, err)
 	}
@@ -179,8 +193,8 @@ func countBubbleFunctions(actions []byte) (int, error) {
 	return 0, fmt.Errorf("missing ActionEnd")
 }
 
-func rewriteBubbleDirectHTMLActions(actions []byte) ([]byte, int, error) {
-	out := make([]byte, 0, len(actions)+256)
+func rewriteBubbleDirectHTMLActions(actions []byte, readability HUDReadabilityConfig) ([]byte, int, error) {
+	out := make([]byte, 0, len(actions)+320)
 	matches := 0
 	pos := 0
 
@@ -270,7 +284,7 @@ func rewriteBubbleDirectHTMLActions(actions []byte) ([]byte, int, error) {
 		if err != nil {
 			return nil, 0, err
 		}
-		postlude, err := buildBubbleHTMLPostlude(bubbleIDRegister, savedRegister)
+		postlude, err := buildBubbleHTMLPostlude(bubbleIDRegister, savedRegister, readability)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -343,13 +357,17 @@ func buildBubbleHTMLPrelude(textRegister, savedRegister byte) ([]byte, error) {
 	return builder.finish()
 }
 
-func buildBubbleHTMLPostlude(bubbleIDRegister, savedRegister byte) ([]byte, error) {
+func buildBubbleHTMLPostlude(bubbleIDRegister, savedRegister byte, readability HUDReadabilityConfig) ([]byte, error) {
 	builder := newActionBuilder()
 
 	pushBubbleTextField(builder, bubbleIDRegister)
 	builder.pushString("htmlText")
 	builder.pushRegister(savedRegister)
 	builder.simple(actionSetMember)
+
+	appendTextFieldReadability(builder, func() {
+		pushBubbleTextField(builder, bubbleIDRegister)
+	}, readability)
 
 	pushBubbleInside(builder, bubbleIDRegister)
 	builder.pushString("_y")
