@@ -43,6 +43,36 @@ func TestMergeDialogueRowsHUDPrototypeEmitsCompleteScaleformHTML(t *testing.T) {
 	}
 }
 
+func TestMergeDialogueRowsHUDUsesExplicitPresentation(t *testing.T) {
+	rows, stats, err := MergeDialogueRowsHUD(
+		[]DialogueRow{{ID: "id", Text: "Основной <br/> line"}},
+		[]DialogueRow{{ID: "id", Text: "Secondary <b>unsafe</b>"}},
+		"RU",
+		"EN",
+		HUDPresentationOptions{
+			SecondaryColor:   "#123ABC",
+			SecondarySize:    18,
+			SecondaryItalic:  false,
+			ShowLanguageTags: false,
+		},
+	)
+	if err != nil {
+		t.Fatalf("MergeDialogueRowsHUD() error = %v", err)
+	}
+	if stats.Bilingual != 1 {
+		t.Fatalf("Bilingual = %d, want 1", stats.Bilingual)
+	}
+
+	got := rows[0].Text
+	want := "Основной <br/> line<br/><font color='#123ABC' size='18'>Secondary &lt;b&gt;unsafe&lt;/b&gt;</font>"
+	if got != want {
+		t.Fatalf("merged text = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "[RU]") || strings.Contains(got, "[EN]") || strings.Contains(got, "<i>") || strings.Contains(got, "</i>") {
+		t.Fatalf("explicit presentation unexpectedly contains tags or italic markup: %q", got)
+	}
+}
+
 func TestMergeDialogueRowsHUDPrototypeLeavesFallbacksPlain(t *testing.T) {
 	main := []DialogueRow{
 		{ID: "identical", Text: "same"},
