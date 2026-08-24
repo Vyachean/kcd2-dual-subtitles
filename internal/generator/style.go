@@ -28,18 +28,18 @@ const (
 // direct-HTML HUD path. Callers that want to customize one field should start
 // from DefaultHUDPresentationConfig so false boolean values remain explicit.
 type HUDPresentationConfig struct {
-	SecondaryColor  string
-	SecondarySize   int
-	SecondaryItalic bool
+	SecondaryColor   string
+	SecondarySize    int
+	SecondaryItalic  bool
 	ShowLanguageTags bool
 }
 
 // DefaultHUDPresentationConfig returns the live-proven rc.10 presentation.
 func DefaultHUDPresentationConfig() HUDPresentationConfig {
 	return HUDPresentationConfig{
-		SecondaryColor:  DefaultHUDSecondaryColor,
-		SecondarySize:   DefaultHUDSecondarySize,
-		SecondaryItalic: true,
+		SecondaryColor:   DefaultHUDSecondaryColor,
+		SecondarySize:    DefaultHUDSecondarySize,
+		SecondaryItalic:  true,
 		ShowLanguageTags: true,
 	}
 }
