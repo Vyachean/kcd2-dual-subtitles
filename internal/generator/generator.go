@@ -144,9 +144,14 @@ func Generate(request Request) (Result, error) {
 			return Result{}, fmt.Errorf("read retail HUD from %s: %w", gameassets.GameDataPAKRelativePath, err)
 		}
 		if presentation.Outline || presentation.Shadow {
+			shadowColor, colorErr := hudColorValue(presentation.ShadowColor)
+			if colorErr != nil {
+				return Result{}, fmt.Errorf("resolve shadow color: %w", colorErr)
+			}
 			derivedHUD, err = patchRetailHUDReadability(retailHUD, gfxpatch.HUDReadabilityConfig{
-				Outline: presentation.Outline,
-				Shadow:  presentation.Shadow,
+				Outline:     presentation.Outline,
+				Shadow:      presentation.Shadow,
+				ShadowColor: shadowColor,
 			})
 		} else {
 			// Preserve the already retail-proven patch path byte-for-byte when
