@@ -23,15 +23,17 @@ func TestMergeDialogueRowsHUDPrototypeEmitsCompleteScaleformHTML(t *testing.T) {
 
 	got := rows[0].Text
 	for _, want := range []string{
-		"<p align='center'>",
 		"[RU] Основной <br/> line",
 		"<br/><font color='" + subtitlepayload.SecondaryColor + "' size='24'><i>",
 		"[EN] Secondary &lt;b&gt;unsafe&lt;/b&gt; <br/> line",
-		"</i></font></p>",
+		"</i></font>",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("merged text = %q, missing %q", got, want)
 		}
+	}
+	if strings.Contains(got, "<p") || strings.Contains(got, "align=") {
+		t.Fatalf("direct HTML payload unexpectedly forces paragraph alignment: %q", got)
 	}
 	if strings.Contains(got, subtitlepayload.Prefix) || strings.Contains(got, subtitlepayload.Suffix) {
 		t.Fatalf("direct HTML payload unexpectedly contains carrier sentinel: %q", got)
