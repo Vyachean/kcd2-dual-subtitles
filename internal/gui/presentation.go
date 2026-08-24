@@ -50,13 +50,13 @@ func (input presentationInput) hudPresentation() (*generator.HUDPresentationConf
 	}
 
 	presentation, err := generator.NormalizeHUDPresentationConfig(generator.HUDPresentationConfig{
-		PrimaryColor:      input.PrimaryColor,
-		PrimarySize:       primarySize,
-		PrimaryItalic:     input.PrimaryItalic,
-		SecondaryColor:    input.SecondaryColor,
-		SecondarySize:     secondarySize,
-		SecondaryItalic:   input.SecondaryItalic,
-		ShowLanguageTags:  input.ShowLanguageTags,
+		PrimaryColor:     input.PrimaryColor,
+		PrimarySize:      primarySize,
+		PrimaryItalic:    input.PrimaryItalic,
+		SecondaryColor:   input.SecondaryColor,
+		SecondarySize:    secondarySize,
+		SecondaryItalic:  input.SecondaryItalic,
+		ShowLanguageTags: input.ShowLanguageTags,
 	})
 	if err != nil {
 		return nil, err
