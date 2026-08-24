@@ -14,6 +14,8 @@ import (
 const (
 	idColorPickerButton        = 1005
 	idPrimaryColorPickerButton = 1006
+	idShadowCheckbox           = 1007
+	idShadowColorPickerButton  = 1008
 	cbResetContent             = 0x014B
 	emSetReadOnly              = 0x00CF
 	ccRGBInit                  = 0x00000001
@@ -116,6 +118,10 @@ func (w *nativeWindow) choosePrimaryColor() {
 	// White is only the initial picker cursor when the optional field is empty;
 	// it is not applied unless the user confirms a color.
 	w.chooseColorForEdit(w.primaryColorEdit, "#FFFFFF")
+}
+
+func (w *nativeWindow) chooseShadowColor() {
+	w.chooseColorForEdit(w.shadowColorEdit, defaultPresentationInput().ShadowColor)
 }
 
 func (w *nativeWindow) chooseColorForEdit(edit uintptr, fallback string) {
