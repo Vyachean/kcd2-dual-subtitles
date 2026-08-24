@@ -60,8 +60,24 @@ func (w *nativeWindow) refreshLanguageControls(gameRoot string) error {
 	if secondaryIndex >= 0 {
 		procSendMessageW.Call(w.secondaryCombo, cbSetCurSel, uintptr(secondaryIndex), 0)
 	}
+
+	status, statusErr := w.service.InspectInstallationForGameRoot(gameRoot)
+	if statusErr != nil {
+		w.model.Installed = false
+		w.model.InstallPath = ""
+		w.model.InstallationKnown = false
+	} else {
+		w.model.Installed = status.Installed
+		w.model.InstallPath = status.Path
+		w.model.InstallationKnown = true
+	}
+
 	if w.generateButton != 0 {
+		w.setText(w.generateButton, w.model.GenerateButtonLabel())
 		w.enable(w.generateButton, !w.busy && len(languages) >= 2)
+	}
+	if w.uninstallButton != 0 {
+		w.enable(w.uninstallButton, !w.busy && w.model.InstallationKnown && w.model.Installed)
 	}
 	return nil
 }
