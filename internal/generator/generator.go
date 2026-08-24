@@ -171,10 +171,13 @@ func mergeRowsForStyle(style SubtitleStyle, presentation HUDPresentationConfig, 
 		return localization.MergeDialogueRowsDifferentiated(mainRows, secondaryRows, mainTag, secondaryTag)
 	case SubtitleStyleHUD:
 		return localization.MergeDialogueRowsHUD(mainRows, secondaryRows, mainTag, secondaryTag, localization.HUDPresentationOptions{
-			SecondaryColor:   presentation.SecondaryColor,
-			SecondarySize:    presentation.SecondarySize,
-			SecondaryItalic:  presentation.SecondaryItalic,
-			ShowLanguageTags: presentation.ShowLanguageTags,
+			PrimaryColor:      presentation.PrimaryColor,
+			PrimarySize:       presentation.PrimarySize,
+			PrimaryItalic:     presentation.PrimaryItalic,
+			SecondaryColor:    presentation.SecondaryColor,
+			SecondarySize:     presentation.SecondarySize,
+			SecondaryItalic:   presentation.SecondaryItalic,
+			ShowLanguageTags:  presentation.ShowLanguageTags,
 		})
 	default:
 		return nil, localization.MergeStats{}, fmt.Errorf("%w: unsupported subtitle style %q", ErrInvalidRequest, style)
