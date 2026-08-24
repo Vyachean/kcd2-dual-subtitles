@@ -26,6 +26,15 @@ type MergeStats struct {
 	SecondaryOnly          int
 }
 
+// HUDPresentationOptions is the normalized formatting input supplied by the
+// generator for truly bilingual rows in direct-HTML HUD mode.
+type HUDPresentationOptions struct {
+	SecondaryColor   string
+	SecondarySize    int
+	SecondaryItalic  bool
+	ShowLanguageTags bool
+}
+
 type bilingualFormatter func(mainText, secondaryText, mainTag, secondaryTag string) string
 
 // MergeDialogueRows combines secondary-language text into main-language rows by ID.
@@ -47,12 +56,26 @@ func MergeDialogueRowsDifferentiated(main, secondary []DialogueRow, mainTag, sec
 	return mergeDialogueRows(main, secondary, mainTag, secondaryTag, formatDifferentiatedBilingual)
 }
 
-// MergeDialogueRowsHUDPrototype emits the complete two-line Scaleform HTML for
-// the direct post-vanilla HUD acceptance path. The derived HUD stores this
-// original argument before vanilla processing and assigns it to htmlText only
-// after the retail global subtitle-size pass has completed.
+// MergeDialogueRowsHUDPrototype preserves the live-proven rc.10 defaults for
+// callers that do not supply presentation options explicitly.
 func MergeDialogueRowsHUDPrototype(main, secondary []DialogueRow, mainTag, secondaryTag string) ([]DialogueRow, MergeStats, error) {
-	return mergeDialogueRows(main, secondary, mainTag, secondaryTag, formatHUDPrototypeBilingual)
+	return MergeDialogueRowsHUD(main, secondary, mainTag, secondaryTag, HUDPresentationOptions{
+		SecondaryColor:   subtitlepayload.SecondaryColor,
+		SecondarySize:    subtitlepayload.SecondarySize,
+		SecondaryItalic:  true,
+		ShowLanguageTags: true,
+	})
+}
+
+// MergeDialogueRowsHUD emits the complete two-line Scaleform HTML for the
+// direct post-vanilla HUD path using generator-normalized presentation options.
+// The derived HUD stores this original argument before vanilla processing and
+// assigns it to htmlText only after the retail global subtitle-size pass.
+func MergeDialogueRowsHUD(main, secondary []DialogueRow, mainTag, secondaryTag string, presentation HUDPresentationOptions) ([]DialogueRow, MergeStats, error) {
+	format := func(mainText, secondaryText, mainTag, secondaryTag string) string {
+		return formatHUDBilingual(mainText, secondaryText, mainTag, secondaryTag, presentation)
+	}
+	return mergeDialogueRows(main, secondary, mainTag, secondaryTag, format)
 }
 
 func mergeDialogueRows(main, secondary []DialogueRow, mainTag, secondaryTag string, format bilingualFormatter) ([]DialogueRow, MergeStats, error) {
@@ -122,17 +145,21 @@ func formatDifferentiatedBilingual(mainText, secondaryText, mainTag, secondaryTa
 	return mainText + BilingualSeparator + "<font color='" + DifferentiatedSecondaryColor + "'><i>" + secondaryText + "</i></font>"
 }
 
-func formatHUDPrototypeBilingual(mainText, secondaryText, mainTag, secondaryTag string) string {
-	if mainTag != "" && secondaryTag != "" {
+func formatHUDBilingual(mainText, secondaryText, mainTag, secondaryTag string, presentation HUDPresentationOptions) string {
+	if presentation.ShowLanguageTags && mainTag != "" && secondaryTag != "" {
 		mainText = "[" + mainTag + "] " + mainText
 		secondaryText = "[" + secondaryTag + "] " + secondaryText
 	}
 
 	mainHTML := subtitlepayload.EncodeSecondaryHTML(mainText)
 	secondaryHTML := subtitlepayload.EncodeSecondaryHTML(secondaryText)
-	return mainHTML +
-		"<br/><font color='" + subtitlepayload.SecondaryColor + "' size='" + strconv.Itoa(subtitlepayload.SecondarySize) + "'><i>" +
-		secondaryHTML + "</i></font>"
+	secondaryPrefix := "<font color='" + presentation.SecondaryColor + "' size='" + strconv.Itoa(presentation.SecondarySize) + "'>"
+	secondarySuffix := "</font>"
+	if presentation.SecondaryItalic {
+		secondaryPrefix += "<i>"
+		secondarySuffix = "</i>" + secondarySuffix
+	}
+	return mainHTML + "<br/>" + secondaryPrefix + secondaryHTML + secondarySuffix
 }
 
 func indexDialogueIDs(rows []DialogueRow, side string) (map[string]struct{}, error) {
