@@ -19,6 +19,7 @@ type presentationInput struct {
 	SecondaryItalic  bool
 	Outline          bool
 	Shadow           bool
+	ShadowColor      string
 }
 
 func defaultPresentationInput() presentationInput {
@@ -34,6 +35,7 @@ func defaultPresentationInput() presentationInput {
 		SecondaryItalic:  defaults.SecondaryItalic,
 		Outline:          defaults.Outline,
 		Shadow:           defaults.Shadow,
+		ShadowColor:      defaults.ShadowColor,
 	}
 }
 
@@ -63,6 +65,7 @@ func (input presentationInput) hudPresentation() (*generator.HUDPresentationConf
 		ShowLanguageTags: input.ShowLanguageTags,
 		Outline:          input.Outline,
 		Shadow:           input.Shadow,
+		ShadowColor:      input.ShadowColor,
 	})
 	if err != nil {
 		return nil, err
