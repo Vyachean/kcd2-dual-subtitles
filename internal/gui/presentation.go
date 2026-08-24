@@ -17,6 +17,8 @@ type presentationInput struct {
 	SecondaryColor   string
 	SecondarySize    string
 	SecondaryItalic  bool
+	Outline          bool
+	Shadow           bool
 }
 
 func defaultPresentationInput() presentationInput {
@@ -30,6 +32,8 @@ func defaultPresentationInput() presentationInput {
 		SecondaryColor:   defaults.SecondaryColor,
 		SecondarySize:    strconv.Itoa(defaults.SecondarySize),
 		SecondaryItalic:  defaults.SecondaryItalic,
+		Outline:          defaults.Outline,
+		Shadow:           defaults.Shadow,
 	}
 }
 
@@ -57,6 +61,8 @@ func (input presentationInput) hudPresentation() (*generator.HUDPresentationConf
 		SecondarySize:    secondarySize,
 		SecondaryItalic:  input.SecondaryItalic,
 		ShowLanguageTags: input.ShowLanguageTags,
+		Outline:          input.Outline,
+		Shadow:           input.Shadow,
 	})
 	if err != nil {
 		return nil, err
