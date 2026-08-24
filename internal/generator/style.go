@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/subtitlepayload"
@@ -20,6 +21,7 @@ const (
 
 	DefaultHUDSecondaryColor = subtitlepayload.SecondaryColor
 	DefaultHUDSecondarySize  = subtitlepayload.SecondarySize
+	DefaultHUDShadowColor    = "#000000"
 	MinHUDSecondarySize      = 12
 	MaxHUDSecondarySize      = 48
 	MinHUDPrimarySize        = MinHUDSecondarySize
@@ -30,6 +32,7 @@ const (
 // direct-HTML HUD path. Empty PrimaryColor and zero PrimarySize mean that the
 // corresponding primary-line property remains controlled by the retail game.
 // Outline and Shadow are common whole-TextField effects and are off by default.
+// ShadowColor defaults to black and is used only when Shadow is enabled.
 type HUDPresentationConfig struct {
 	PrimaryColor     string
 	PrimarySize      int
@@ -40,6 +43,7 @@ type HUDPresentationConfig struct {
 	ShowLanguageTags bool
 	Outline          bool
 	Shadow           bool
+	ShadowColor      string
 }
 
 // DefaultHUDPresentationConfig returns the live-proven presentation, leaves the
@@ -50,6 +54,7 @@ func DefaultHUDPresentationConfig() HUDPresentationConfig {
 		SecondarySize:    DefaultHUDSecondarySize,
 		SecondaryItalic:  true,
 		ShowLanguageTags: true,
+		ShadowColor:      DefaultHUDShadowColor,
 	}
 }
 
@@ -110,6 +115,14 @@ func normalizeHUDPresentation(style SubtitleStyle, configured *HUDPresentationCo
 	if presentation.SecondarySize < MinHUDSecondarySize || presentation.SecondarySize > MaxHUDSecondarySize {
 		return HUDPresentationConfig{}, fmt.Errorf("%w: secondary size must be between %d and %d", ErrInvalidRequest, MinHUDSecondarySize, MaxHUDSecondarySize)
 	}
+
+	presentation.ShadowColor = strings.TrimSpace(presentation.ShadowColor)
+	if presentation.ShadowColor == "" {
+		presentation.ShadowColor = DefaultHUDShadowColor
+	}
+	if !validHUDColor(presentation.ShadowColor) {
+		return HUDPresentationConfig{}, fmt.Errorf("%w: shadow color must use #RRGGBB format", ErrInvalidRequest)
+	}
 	return presentation, nil
 }
 
@@ -123,4 +136,16 @@ func validHUDColor(value string) bool {
 		}
 	}
 	return true
+}
+
+func hudColorValue(value string) (int32, error) {
+	value = strings.TrimSpace(value)
+	if !validHUDColor(value) {
+		return 0, fmt.Errorf("invalid HUD color %q", value)
+	}
+	parsed, err := strconv.ParseUint(value[1:], 16, 24)
+	if err != nil {
+		return 0, fmt.Errorf("parse HUD color %q: %w", value, err)
+	}
+	return int32(parsed), nil
 }
