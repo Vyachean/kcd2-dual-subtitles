@@ -2,6 +2,26 @@
 
 All notable stable-release changes are recorded here. Release candidates are development history and are not listed individually.
 
+## [v0.3.2] - 2026-08-24
+
+Automatic-install target correction completing the store-neutral v0.3 compatibility contract.
+
+### Fixed
+
+- Automatic installation now resolves the mod root from the selected KCD2 installation instead of always writing to the Microsoft GDK Documents path.
+- Standard compatible PC layouts use `<game-root>\Mods\kcd_dual_subtitles`.
+- Microsoft GDK packaged layouts continue to use the real Windows Documents Known Folder at `<Documents>\kingdomcome_mods\kcd_dual_subtitles`.
+- GDK layout detection uses package artifacts in or next to the selected installation (`gamelaunchhelper.exe`, `MicrosoftGame.config`, or `appxmanifest.xml`) rather than an `XboxGames` path-name heuristic.
+- Install, HUD-conflict detection, `mod_order.txt`, Regenerate status and Uninstall now share one resolved mod root.
+- Switching the GUI to another installation with `Browse...` refreshes install state for that selected copy of KCD2 instead of reusing a different installation's status.
+- Uninstall removes this project's mod only from the currently selected installation target.
+
+### Notes
+
+- Automatic installation remains Windows-only; portable ZIP generation is unchanged.
+- The Microsoft GDK/Documents path remains the live retail-accepted environment from the v0.3 test cycle.
+- Standard `<game-root>\Mods` targeting follows the KCD2 PC mod layout and is covered by automated resolver/install tests; not every storefront build has been separately live-tested.
+
 ## [v0.3.1] - 2026-08-24
 
 Platform-neutral compatibility correction for the v0.3 release line.
@@ -71,6 +91,7 @@ Initial stable localization-only release.
 - CLI generation and acceptance canary support.
 - Retail validation on KCD2 1.5.6 Xbox / Microsoft Store PC.
 
+[v0.3.2]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.2
 [v0.3.1]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.1
 [v0.3.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.0
 [v0.1.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.1.0
