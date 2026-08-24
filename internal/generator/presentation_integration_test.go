@@ -31,13 +31,13 @@ func TestGenerateHUDUsesExplicitPresentationConfig(t *testing.T) {
 	gameRoot := createGameRoot(t, true, true)
 	output := filepath.Join(t.TempDir(), "hud-custom-presentation.zip")
 	_, err := Generate(Request{
-		GameRoot:           gameRoot,
-		MainLanguage:       localization.Russian,
-		SecondaryLanguage:  localization.English,
-		SubtitleStyle:      SubtitleStyleHUD,
-		HUDPresentation:    &presentation,
-		OutputPath:         output,
-		Version:            "v0.3.0-test",
+		GameRoot:          gameRoot,
+		MainLanguage:      localization.Russian,
+		SecondaryLanguage: localization.English,
+		SubtitleStyle:     SubtitleStyleHUD,
+		HUDPresentation:   &presentation,
+		OutputPath:        output,
+		Version:           "v0.3.0-test",
 	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
