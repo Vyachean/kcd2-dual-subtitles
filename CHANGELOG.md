@@ -2,6 +2,22 @@
 
 All notable stable-release changes are recorded here. Release candidates are development history and are not listed individually.
 
+## [v0.3.3] - 2026-08-24
+
+Presentation control update adding configurable shadow color while preserving the existing outline implementation.
+
+### Added
+
+- Styled subtitle Shadow now has an independent `#RRGGBB` color setting in the native GUI.
+- The Shadow color uses the existing native Windows color picker and defaults to black (`#000000`).
+- The selected color is written through the existing Scaleform `TextField.shadowColor` property for both standard bottom subtitles and overhead subtitle bubbles.
+
+### Notes
+
+- Shadow geometry, alpha, blur, distance, quality and strength remain unchanged from the accepted v0.3 readability path.
+- Outline remains the existing width-only `TextField.outline` implementation. No unsupported outline-color property is introduced.
+- Existing users who do not change Shadow color retain the previous black-shadow appearance.
+
 ## [v0.3.2] - 2026-08-24
 
 Automatic-install target correction completing the store-neutral v0.3 compatibility contract.
@@ -91,6 +107,7 @@ Initial stable localization-only release.
 - CLI generation and acceptance canary support.
 - Retail validation on KCD2 1.5.6 Xbox / Microsoft Store PC.
 
+[v0.3.3]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.3
 [v0.3.2]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.2
 [v0.3.1]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.1
 [v0.3.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.0
