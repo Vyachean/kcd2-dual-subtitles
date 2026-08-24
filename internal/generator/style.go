@@ -32,13 +32,13 @@ const (
 // Callers that want to customize secondary boolean fields should start from
 // DefaultHUDPresentationConfig so false values remain explicit.
 type HUDPresentationConfig struct {
-	PrimaryColor      string
-	PrimarySize       int
-	PrimaryItalic     bool
-	SecondaryColor    string
-	SecondarySize     int
-	SecondaryItalic   bool
-	ShowLanguageTags  bool
+	PrimaryColor     string
+	PrimarySize      int
+	PrimaryItalic    bool
+	SecondaryColor   string
+	SecondarySize    int
+	SecondaryItalic  bool
+	ShowLanguageTags bool
 }
 
 // DefaultHUDPresentationConfig returns the live-proven rc.10 presentation and
