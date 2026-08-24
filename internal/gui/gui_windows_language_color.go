@@ -18,8 +18,8 @@ const (
 )
 
 var (
-	guiComdlg32       = syscall.NewLazyDLL("comdlg32.dll")
-	procChooseColorW  = guiComdlg32.NewProc("ChooseColorW")
+	guiComdlg32      = syscall.NewLazyDLL("comdlg32.dll")
+	procChooseColorW = guiComdlg32.NewProc("ChooseColorW")
 )
 
 type chooseColor struct {
