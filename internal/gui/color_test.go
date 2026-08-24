@@ -22,3 +22,14 @@ func TestFormatHexRGBUsesCanonicalUppercase(t *testing.T) {
 		t.Fatalf("formatHexRGB() = %q", got)
 	}
 }
+
+func TestColorRefRoundTrip(t *testing.T) {
+	ref := rgbToColorRef(0x12, 0x34, 0x56)
+	if ref != 0x00563412 {
+		t.Fatalf("COLORREF = %#08x, want 0x00563412", ref)
+	}
+	red, green, blue := colorRefToRGB(ref)
+	if red != 0x12 || green != 0x34 || blue != 0x56 {
+		t.Fatalf("colorRefToRGB() = %02X %02X %02X", red, green, blue)
+	}
+}
