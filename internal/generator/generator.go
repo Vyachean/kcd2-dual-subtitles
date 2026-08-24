@@ -171,6 +171,9 @@ func mergeRowsForStyle(style SubtitleStyle, presentation HUDPresentationConfig, 
 		return localization.MergeDialogueRowsDifferentiated(mainRows, secondaryRows, mainTag, secondaryTag)
 	case SubtitleStyleHUD:
 		return localization.MergeDialogueRowsHUD(mainRows, secondaryRows, mainTag, secondaryTag, localization.HUDPresentationOptions{
+			PrimaryColor:     presentation.PrimaryColor,
+			PrimarySize:      presentation.PrimarySize,
+			PrimaryItalic:    presentation.PrimaryItalic,
 			SecondaryColor:   presentation.SecondaryColor,
 			SecondarySize:    presentation.SecondarySize,
 			SecondaryItalic:  presentation.SecondaryItalic,

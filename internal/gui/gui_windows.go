@@ -145,23 +145,27 @@ type nativeWindow struct {
 	presentation presentationInput
 	busy         bool
 
-	hwnd              uintptr
-	gameEdit          uintptr
-	mainCombo         uintptr
-	secondaryCombo    uintptr
-	styledCheckbox    uintptr
-	tagsCheckbox      uintptr
-	colorEdit         uintptr
-	colorPickerButton uintptr
-	sizeEdit          uintptr
-	italicCheckbox    uintptr
-	generateButton    uintptr
-	uninstallButton   uintptr
-	statusLabel       uintptr
-	font              uintptr
-	startupErr        error
-	languages         []localization.LanguageInfo
-	customColors      [16]uint32
+	hwnd                     uintptr
+	gameEdit                 uintptr
+	mainCombo                uintptr
+	secondaryCombo           uintptr
+	styledCheckbox           uintptr
+	tagsCheckbox             uintptr
+	primaryColorEdit         uintptr
+	primaryColorPickerButton uintptr
+	primarySizeEdit          uintptr
+	primaryItalicCheckbox    uintptr
+	colorEdit                uintptr
+	colorPickerButton        uintptr
+	sizeEdit                 uintptr
+	italicCheckbox           uintptr
+	generateButton           uintptr
+	uninstallButton          uintptr
+	statusLabel              uintptr
+	font                     uintptr
+	startupErr               error
+	languages                []localization.LanguageInfo
+	customColors             [16]uint32
 }
 
 var activeWindow *nativeWindow
@@ -225,9 +229,9 @@ func (w *nativeWindow) create() error {
 		uintptr(unsafe.Pointer(title)),
 		wsCaption|wsSysMenu|wsMinimizeBox,
 		180,
-		120,
+		80,
 		660,
-		510,
+		590,
 		0,
 		0,
 		instance,
@@ -285,7 +289,7 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 		return fmt.Errorf("discover installed languages: %w", err)
 	}
 
-	styled, err := w.createControl("BUTTON", "Styled secondary subtitles", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 20, 176, 230, 24, idStyledCheckbox)
+	styled, err := w.createControl("BUTTON", "Styled subtitles", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 20, 176, 230, 24, idStyledCheckbox)
 	if err != nil {
 		return err
 	}
@@ -299,30 +303,61 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 	w.tagsCheckbox = tags
 	w.setChecked(w.tagsCheckbox, w.presentation.ShowLanguageTags)
 
-	if _, err := w.createControl("STATIC", "Secondary color", wsChild|wsVisible, 40, 243, 115, 22, 0); err != nil {
+	if _, err := w.createControl("STATIC", "Primary color", wsChild|wsVisible, 40, 243, 115, 22, 0); err != nil {
 		return err
 	}
-	colorEdit, err := w.createControl("EDIT", w.presentation.SecondaryColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 165, 239, 110, 26, 0)
+	primaryColorEdit, err := w.createControl("EDIT", w.presentation.PrimaryColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 165, 239, 110, 26, 0)
+	if err != nil {
+		return err
+	}
+	w.primaryColorEdit = primaryColorEdit
+	primaryColorPicker, err := w.createControl("BUTTON", "Choose...", wsChild|wsVisible|wsTabStop, 490, 239, 85, 26, idPrimaryColorPickerButton)
+	if err != nil {
+		return err
+	}
+	w.primaryColorPickerButton = primaryColorPicker
+	if _, err := w.createControl("STATIC", "Primary size", wsChild|wsVisible, 300, 243, 100, 22, 0); err != nil {
+		return err
+	}
+	primarySizeEdit, err := w.createControl("EDIT", w.presentation.PrimarySize, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 410, 239, 70, 26, 0)
+	if err != nil {
+		return err
+	}
+	w.primarySizeEdit = primarySizeEdit
+	primaryItalic, err := w.createControl("BUTTON", "Italic primary line", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 40, 276, 180, 24, 0)
+	if err != nil {
+		return err
+	}
+	w.primaryItalicCheckbox = primaryItalic
+	w.setChecked(w.primaryItalicCheckbox, w.presentation.PrimaryItalic)
+	if _, err := w.createControl("STATIC", "Leave primary color/size blank to use the game's default style.", wsChild|wsVisible, 235, 278, 355, 22, 0); err != nil {
+		return err
+	}
+
+	if _, err := w.createControl("STATIC", "Secondary color", wsChild|wsVisible, 40, 313, 115, 22, 0); err != nil {
+		return err
+	}
+	colorEdit, err := w.createControl("EDIT", w.presentation.SecondaryColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 165, 309, 110, 26, 0)
 	if err != nil {
 		return err
 	}
 	w.colorEdit = colorEdit
-	colorPicker, err := w.createControl("BUTTON", "Choose...", wsChild|wsVisible|wsTabStop, 490, 239, 85, 26, idColorPickerButton)
+	colorPicker, err := w.createControl("BUTTON", "Choose...", wsChild|wsVisible|wsTabStop, 490, 309, 85, 26, idColorPickerButton)
 	if err != nil {
 		return err
 	}
 	w.colorPickerButton = colorPicker
 
-	if _, err := w.createControl("STATIC", "Secondary size", wsChild|wsVisible, 300, 243, 100, 22, 0); err != nil {
+	if _, err := w.createControl("STATIC", "Secondary size", wsChild|wsVisible, 300, 313, 100, 22, 0); err != nil {
 		return err
 	}
-	sizeEdit, err := w.createControl("EDIT", w.presentation.SecondarySize, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 410, 239, 70, 26, 0)
+	sizeEdit, err := w.createControl("EDIT", w.presentation.SecondarySize, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 410, 309, 70, 26, 0)
 	if err != nil {
 		return err
 	}
 	w.sizeEdit = sizeEdit
 
-	italic, err := w.createControl("BUTTON", "Italic secondary line", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 40, 276, 180, 24, 0)
+	italic, err := w.createControl("BUTTON", "Italic secondary line", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 40, 346, 180, 24, 0)
 	if err != nil {
 		return err
 	}
@@ -330,20 +365,20 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 	w.setChecked(w.italicCheckbox, w.presentation.SecondaryItalic)
 	w.updatePresentationControls()
 
-	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 20, 320, 190, 34, idGenerateButton)
+	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 20, 394, 190, 34, idGenerateButton)
 	if err != nil {
 		return err
 	}
 	w.generateButton = generate
 	w.enable(w.generateButton, len(w.languages) >= 2)
-	uninstall, err := w.createControl("BUTTON", "Uninstall", wsChild|wsVisible|wsTabStop, 225, 320, 120, 34, idUninstallButton)
+	uninstall, err := w.createControl("BUTTON", "Uninstall", wsChild|wsVisible|wsTabStop, 225, 394, 120, 34, idUninstallButton)
 	if err != nil {
 		return err
 	}
 	w.uninstallButton = uninstall
 	w.enable(w.uninstallButton, w.model.InstallationKnown && w.model.Installed)
 
-	status, err := w.createControl("STATIC", w.model.Status, wsChild|wsVisible, 20, 377, 605, 72, 0)
+	status, err := w.createControl("STATIC", w.model.Status, wsChild|wsVisible, 20, 451, 605, 72, 0)
 	if err != nil {
 		return err
 	}
@@ -427,6 +462,8 @@ func (w *nativeWindow) handleCommand(id uint16) {
 		w.updatePresentationControls()
 	case idColorPickerButton:
 		w.chooseSecondaryColor()
+	case idPrimaryColorPickerButton:
+		w.choosePrimaryColor()
 	}
 }
 
@@ -566,6 +603,9 @@ func (w *nativeWindow) currentPresentationInput() presentationInput {
 	return presentationInput{
 		Styled:           w.checked(w.styledCheckbox),
 		ShowLanguageTags: w.checked(w.tagsCheckbox),
+		PrimaryColor:     w.text(w.primaryColorEdit),
+		PrimarySize:      w.text(w.primarySizeEdit),
+		PrimaryItalic:    w.checked(w.primaryItalicCheckbox),
 		SecondaryColor:   w.text(w.colorEdit),
 		SecondarySize:    w.text(w.sizeEdit),
 		SecondaryItalic:  w.checked(w.italicCheckbox),
@@ -587,6 +627,10 @@ func (w *nativeWindow) setBusy(busy bool) {
 func (w *nativeWindow) updatePresentationControls() {
 	enabled := !w.busy && w.checked(w.styledCheckbox)
 	w.enable(w.tagsCheckbox, enabled)
+	w.enable(w.primaryColorEdit, enabled)
+	w.enable(w.primaryColorPickerButton, enabled)
+	w.enable(w.primarySizeEdit, enabled)
+	w.enable(w.primaryItalicCheckbox, enabled)
 	w.enable(w.colorEdit, enabled)
 	w.enable(w.colorPickerButton, enabled)
 	w.enable(w.sizeEdit, enabled)

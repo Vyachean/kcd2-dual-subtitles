@@ -22,19 +22,27 @@ const (
 	DefaultHUDSecondarySize  = subtitlepayload.SecondarySize
 	MinHUDSecondarySize      = 12
 	MaxHUDSecondarySize      = 48
+	MinHUDPrimarySize        = MinHUDSecondarySize
+	MaxHUDPrimarySize        = MaxHUDSecondarySize
 )
 
 // HUDPresentationConfig controls generation-time presentation for the proven
-// direct-HTML HUD path. Callers that want to customize one field should start
-// from DefaultHUDPresentationConfig so false boolean values remain explicit.
+// direct-HTML HUD path. Empty PrimaryColor and zero PrimarySize mean that the
+// corresponding primary-line property remains controlled by the retail game.
+// Callers that want to customize secondary boolean fields should start from
+// DefaultHUDPresentationConfig so false values remain explicit.
 type HUDPresentationConfig struct {
+	PrimaryColor     string
+	PrimarySize      int
+	PrimaryItalic    bool
 	SecondaryColor   string
 	SecondarySize    int
 	SecondaryItalic  bool
 	ShowLanguageTags bool
 }
 
-// DefaultHUDPresentationConfig returns the live-proven rc.10 presentation.
+// DefaultHUDPresentationConfig returns the live-proven rc.10 presentation and
+// leaves the primary line entirely under vanilla styling.
 func DefaultHUDPresentationConfig() HUDPresentationConfig {
 	return HUDPresentationConfig{
 		SecondaryColor:   DefaultHUDSecondaryColor,
@@ -86,6 +94,14 @@ func normalizeHUDPresentation(style SubtitleStyle, configured *HUDPresentationCo
 	}
 
 	presentation := *configured
+	presentation.PrimaryColor = strings.TrimSpace(presentation.PrimaryColor)
+	if presentation.PrimaryColor != "" && !validHUDColor(presentation.PrimaryColor) {
+		return HUDPresentationConfig{}, fmt.Errorf("%w: primary color must be empty or use #RRGGBB format", ErrInvalidRequest)
+	}
+	if presentation.PrimarySize != 0 && (presentation.PrimarySize < MinHUDPrimarySize || presentation.PrimarySize > MaxHUDPrimarySize) {
+		return HUDPresentationConfig{}, fmt.Errorf("%w: primary size must be 0 (vanilla) or between %d and %d", ErrInvalidRequest, MinHUDPrimarySize, MaxHUDPrimarySize)
+	}
+
 	presentation.SecondaryColor = strings.TrimSpace(presentation.SecondaryColor)
 	if !validHUDColor(presentation.SecondaryColor) {
 		return HUDPresentationConfig{}, fmt.Errorf("%w: secondary color must use #RRGGBB format", ErrInvalidRequest)

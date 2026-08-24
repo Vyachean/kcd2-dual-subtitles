@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	idColorPickerButton = 1005
-	cbResetContent      = 0x014B
-	ccRGBInit           = 0x00000001
-	ccFullOpen          = 0x00000002
+	idColorPickerButton        = 1005
+	idPrimaryColorPickerButton = 1006
+	cbResetContent             = 0x014B
+	ccRGBInit                  = 0x00000001
+	ccFullOpen                 = 0x00000002
 )
 
 var (
@@ -66,9 +67,19 @@ func (w *nativeWindow) refreshLanguageControls(gameRoot string) error {
 }
 
 func (w *nativeWindow) chooseSecondaryColor() {
-	red, green, blue, ok := parseHexRGB(w.text(w.colorEdit))
+	w.chooseColorForEdit(w.colorEdit, defaultPresentationInput().SecondaryColor)
+}
+
+func (w *nativeWindow) choosePrimaryColor() {
+	// White is only the initial picker cursor when the optional field is empty;
+	// it is not applied unless the user confirms a color.
+	w.chooseColorForEdit(w.primaryColorEdit, "#FFFFFF")
+}
+
+func (w *nativeWindow) chooseColorForEdit(edit uintptr, fallback string) {
+	red, green, blue, ok := parseHexRGB(w.text(edit))
 	if !ok {
-		red, green, blue, _ = parseHexRGB(defaultPresentationInput().SecondaryColor)
+		red, green, blue, _ = parseHexRGB(fallback)
 	}
 
 	picker := chooseColor{
@@ -84,9 +95,7 @@ func (w *nativeWindow) chooseSecondaryColor() {
 	}
 
 	red, green, blue = colorRefToRGB(picker.RGBResult)
-	value := formatHexRGB(red, green, blue)
-	w.setText(w.colorEdit, value)
-	w.presentation.SecondaryColor = value
+	w.setText(edit, formatHexRGB(red, green, blue))
 }
 
 func (w *nativeWindow) requireAtLeastTwoInstalledLanguages() error {

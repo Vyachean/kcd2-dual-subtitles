@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/subtitlepayload"
 )
@@ -27,8 +28,12 @@ type MergeStats struct {
 }
 
 // HUDPresentationOptions is the normalized formatting input supplied by the
-// generator for truly bilingual rows in direct-HTML HUD mode.
+// generator for truly bilingual rows in direct-HTML HUD mode. Empty/zero
+// primary properties leave that property under vanilla control.
 type HUDPresentationOptions struct {
+	PrimaryColor     string
+	PrimarySize      int
+	PrimaryItalic    bool
 	SecondaryColor   string
 	SecondarySize    int
 	SecondaryItalic  bool
@@ -151,15 +156,44 @@ func formatHUDBilingual(mainText, secondaryText, mainTag, secondaryTag string, p
 		secondaryText = "[" + secondaryTag + "] " + secondaryText
 	}
 
-	mainHTML := subtitlepayload.EncodeSecondaryHTML(mainText)
-	secondaryHTML := subtitlepayload.EncodeSecondaryHTML(secondaryText)
-	secondaryPrefix := "<font color='" + presentation.SecondaryColor + "' size='" + strconv.Itoa(presentation.SecondarySize) + "'>"
-	secondarySuffix := "</font>"
-	if presentation.SecondaryItalic {
-		secondaryPrefix += "<i>"
-		secondarySuffix = "</i>" + secondarySuffix
+	mainHTML := formatHUDLine(
+		subtitlepayload.EncodeSecondaryHTML(mainText),
+		presentation.PrimaryColor,
+		presentation.PrimarySize,
+		presentation.PrimaryItalic,
+	)
+	secondaryHTML := formatHUDLine(
+		subtitlepayload.EncodeSecondaryHTML(secondaryText),
+		presentation.SecondaryColor,
+		presentation.SecondarySize,
+		presentation.SecondaryItalic,
+	)
+	return mainHTML + "<br/>" + secondaryHTML
+}
+
+func formatHUDLine(text, color string, size int, italic bool) string {
+	var prefix strings.Builder
+	suffix := ""
+	if color != "" || size != 0 {
+		prefix.WriteString("<font")
+		if color != "" {
+			prefix.WriteString(" color='")
+			prefix.WriteString(color)
+			prefix.WriteString("'")
+		}
+		if size != 0 {
+			prefix.WriteString(" size='")
+			prefix.WriteString(strconv.Itoa(size))
+			prefix.WriteString("'")
+		}
+		prefix.WriteString(">")
+		suffix = "</font>"
 	}
-	return mainHTML + "<br/>" + secondaryPrefix + secondaryHTML + secondarySuffix
+	if italic {
+		prefix.WriteString("<i>")
+		suffix = "</i>" + suffix
+	}
+	return prefix.String() + text + suffix
 }
 
 func indexDialogueIDs(rows []DialogueRow, side string) (map[string]struct{}, error) {
