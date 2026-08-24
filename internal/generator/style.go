@@ -29,6 +29,8 @@ const (
 // HUDPresentationConfig controls generation-time presentation for the proven
 // direct-HTML HUD path. Empty PrimaryColor and zero PrimarySize mean that the
 // corresponding primary-line property remains controlled by the retail game.
+// Outline and Shadow are common whole-TextField readability effects and are
+// deliberately disabled by default until they pass retail acceptance.
 // Callers that want to customize secondary boolean fields should start from
 // DefaultHUDPresentationConfig so false values remain explicit.
 type HUDPresentationConfig struct {
@@ -39,10 +41,12 @@ type HUDPresentationConfig struct {
 	SecondarySize    int
 	SecondaryItalic  bool
 	ShowLanguageTags bool
+	Outline          bool
+	Shadow           bool
 }
 
-// DefaultHUDPresentationConfig returns the live-proven rc.10 presentation and
-// leaves the primary line entirely under vanilla styling.
+// DefaultHUDPresentationConfig returns the live-proven rc.10 presentation,
+// leaves the primary line under vanilla styling and adds no readability effect.
 func DefaultHUDPresentationConfig() HUDPresentationConfig {
 	return HUDPresentationConfig{
 		SecondaryColor:   DefaultHUDSecondaryColor,
