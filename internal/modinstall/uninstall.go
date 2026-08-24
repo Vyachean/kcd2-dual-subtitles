@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
 )
@@ -17,8 +18,8 @@ type UninstallResult struct {
 	UpdatedModOrder bool
 }
 
-// Uninstall removes only this tool's generated mod and its entries from an
-// existing mod_order.txt.
+// Uninstall keeps the historical Documents-root behavior for focused legacy
+// callers. New application code should use UninstallForGameRoot.
 func Uninstall() (UninstallResult, error) {
 	documents, err := documentsPath()
 	if err != nil {
@@ -27,12 +28,28 @@ func Uninstall() (UninstallResult, error) {
 	return uninstallFromDocuments(documents)
 }
 
+// UninstallForGameRoot resolves the same target used by automatic installation
+// and removes only this tool's mod and load-order entry there.
+func UninstallForGameRoot(gameRoot string) (UninstallResult, error) {
+	location, err := ResolveInstallLocation(gameRoot)
+	if err != nil {
+		return UninstallResult{}, err
+	}
+	return uninstallFromModsRoot(location.ModsRoot)
+}
+
 func uninstallFromDocuments(documents string) (UninstallResult, error) {
 	if documents == "" {
 		return UninstallResult{}, errors.New("Documents path is empty")
 	}
+	return uninstallFromModsRoot(filepath.Join(documents, ModsDirectoryName))
+}
 
-	modsRoot := filepath.Join(documents, ModsDirectoryName)
+func uninstallFromModsRoot(modsRoot string) (UninstallResult, error) {
+	modsRoot = strings.TrimSpace(modsRoot)
+	if modsRoot == "" {
+		return UninstallResult{}, errors.New("KCD2 mod root is empty")
+	}
 	target := filepath.Join(modsRoot, modarchive.ModID)
 	result := UninstallResult{Path: target}
 
