@@ -4,7 +4,7 @@
 
 KCD2 Dual Subtitles is a dependency-light Windows tool that builds bilingual dialogue subtitles from localization files already installed with Kingdom Come: Deliverance II.
 
-The compatibility contract is **store-neutral**: Steam, GOG, Epic Games Store, Xbox / Microsoft Store and other Windows distributions use the same generator when they expose a compatible KCD2 `Content` layout. The retail acceptance environment used during v0.3 development was KCD2 1.5.6 from Xbox / Microsoft Store; that is evidence, not a product restriction.
+The compatibility contract is **store-neutral**: Steam, GOG, Epic Games Store, Xbox / Microsoft Store and other Windows distributions use the same generator when they expose a compatible KCD2 file layout. The retail acceptance environment used during v0.3 development was KCD2 1.5.6 from Xbox / Microsoft Store; that is evidence, not a product restriction.
 
 ## Development rules
 
@@ -16,6 +16,7 @@ The compatibility contract is **store-neutral**: Steam, GOG, Epic Games Store, X
 6. Prefer the Go standard library and one Windows executable containing both GUI and CLI entrypoints.
 7. Treat live in-game behavior as a separate acceptance gate when CI cannot prove it.
 8. Never make store/launcher identity a requirement for generation; validate the KCD2 file structure instead.
+9. The selected game installation is the source of truth for install/status/uninstall; all of those operations must resolve and use one identical mod root.
 
 ## v0.1 — localization baseline
 
@@ -51,7 +52,7 @@ Issue #36 is historical/superseded by the v0.3 stable release.
 
 ## v0.3 — stable fixed-pair styled subtitles
 
-Status: **stable**. `v0.3.0` established the feature set; `v0.3.1` removes the remaining store/language-specific game-root assumption.
+Status: **stable**. `v0.3.0` established the feature set, `v0.3.1` removed store/language-specific game-root validation, and `v0.3.2` completes the store-neutral automatic-install contract.
 
 The stable v0.3 contract is intentionally a **generation-time fixed pair**, not the larger runtime-language architecture originally explored in #39.
 
@@ -84,13 +85,19 @@ The stable v0.3 contract is intentionally a **generation-time fixed pair**, not 
 
 ### Windows installation robustness
 
-- [x] real Windows Documents Known Folder;
-- [x] redirected/OneDrive Documents support;
+- [x] one `InstallLocation` resolver is the source of truth for automatic install/status/uninstall;
+- [x] normal PC layouts use `<game-root>\Mods`;
+- [x] Microsoft GDK layouts use the real Windows Documents Known Folder plus `kingdomcome_mods`;
+- [x] GDK layout is recognized from package artifacts rather than `XboxGames` path names;
+- [x] manual `Browse...` selection refreshes installation state for the selected copy of KCD2;
+- [x] foreign-HUD conflict scanning and `mod_order.txt` use the same resolved mod root as publication;
+- [x] redirected/OneDrive Documents support remains available for GDK installations;
 - [x] bounded retry around Windows rename/sharing failures;
 - [x] guarded copy fallback for cloud-backed Documents when rename remains unavailable;
 - [x] staged replacement and rollback;
 - [x] safe existing `mod_order.txt` preservation;
-- [x] safe uninstall.
+- [x] safe uninstall from the selected installation target;
+- [x] automatic installation remains Windows-only; portable ZIP behavior is unchanged elsewhere.
 
 ### Retail acceptance established during v0.3 RCs
 
@@ -100,7 +107,10 @@ The stable v0.3 contract is intentionally a **generation-time fixed pair**, not 
 - [x] forced centering removed after it was shown to disturb dialogue-choice layout;
 - [x] presentation GUI works in the retail environment;
 - [x] language pair is independent of the game's active text language (for example Czech + German while KCD2 remains English);
-- [x] outline/shadow path accepted in the retail test cycle.
+- [x] outline/shadow path accepted in the retail test cycle;
+- [x] Microsoft GDK/Documents installation path accepted in retail.
+
+Standard `<game-root>\Mods` targeting follows the official KCD2 mod layout and is covered by automated resolver/install tests; separate live storefront acceptance runs remain useful evidence but are not an architecture fork.
 
 ## Known v0.3 limitations / future work
 

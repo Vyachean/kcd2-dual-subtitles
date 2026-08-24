@@ -20,6 +20,7 @@ func TestGenerateAndInstallNormalizesParentAndPreservesExplicitLanguages(t *test
 	var got generator.Request
 	service := Service{
 		version: "v0.2.0-test",
+		state:   &serviceState{},
 		generate: func(request generator.Request) (generator.Result, error) {
 			got = request
 			return generator.Result{InstallPath: "installed"}, nil
@@ -39,6 +40,9 @@ func TestGenerateAndInstallNormalizesParentAndPreservesExplicitLanguages(t *test
 	if got.OutputPath != "" || got.CanaryID != "" {
 		t.Fatalf("GUI generation unexpectedly enabled archive/canary options: %+v", got)
 	}
+	if service.currentGameRoot() != content {
+		t.Fatalf("selected root = %q, want %q", service.currentGameRoot(), content)
+	}
 }
 
 func TestGenerateAndInstallRejectsSameLanguageWithoutCallingGenerator(t *testing.T) {
@@ -56,15 +60,20 @@ func TestGenerateAndInstallRejectsSameLanguageWithoutCallingGenerator(t *testing
 	}
 }
 
-func TestServiceDelegatesDetectionInspectionAndUninstall(t *testing.T) {
+func TestServiceDelegatesDetectionInspectionAndUninstallForSameRoot(t *testing.T) {
+	var inspectedRoot string
+	var uninstalledRoot string
 	service := Service{
+		state: &serviceState{},
 		detect: func() (gamedetect.Result, error) {
 			return gamedetect.Result{Candidates: []string{"game"}}, nil
 		},
-		inspect: func() (modinstall.Status, error) {
+		inspect: func(root string) (modinstall.Status, error) {
+			inspectedRoot = root
 			return modinstall.Status{Installed: true, Path: "mod"}, nil
 		},
-		uninstall: func() (modinstall.UninstallResult, error) {
+		uninstall: func(root string) (modinstall.UninstallResult, error) {
+			uninstalledRoot = root
 			return modinstall.UninstallResult{Path: "mod", RemovedMod: true}, nil
 		},
 	}
@@ -80,6 +89,44 @@ func TestServiceDelegatesDetectionInspectionAndUninstall(t *testing.T) {
 	uninstalled, err := service.Uninstall()
 	if err != nil || !uninstalled.RemovedMod || uninstalled.Path != "mod" {
 		t.Fatalf("Uninstall() = %+v, err=%v", uninstalled, err)
+	}
+	if inspectedRoot != "game" || uninstalledRoot != "game" {
+		t.Fatalf("roots: inspect=%q uninstall=%q", inspectedRoot, uninstalledRoot)
+	}
+}
+
+func TestServiceValueCopiesShareSelectedGameRoot(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "Kingdom Come")
+	content := filepath.Join(parent, "Content")
+	createApplicationGameLayout(t, content)
+
+	service := Service{state: &serviceState{}}
+	copyOfService := service
+	if _, err := service.ValidateGameRoot(parent); err != nil {
+		t.Fatal(err)
+	}
+	if got := copyOfService.currentGameRoot(); got != content {
+		t.Fatalf("copied service root = %q, want %q", got, content)
+	}
+}
+
+func TestServiceRequiresSelectedRootForStatusAndUninstall(t *testing.T) {
+	service := Service{
+		state: &serviceState{},
+		inspect: func(string) (modinstall.Status, error) {
+			t.Fatal("inspect called without a selected root")
+			return modinstall.Status{}, nil
+		},
+		uninstall: func(string) (modinstall.UninstallResult, error) {
+			t.Fatal("uninstall called without a selected root")
+			return modinstall.UninstallResult{}, nil
+		},
+	}
+	if _, err := service.InspectInstallation(); !errors.Is(err, ErrGameRootNotSelected) {
+		t.Fatalf("InspectInstallation() error = %v", err)
+	}
+	if _, err := service.Uninstall(); !errors.Is(err, ErrGameRootNotSelected) {
+		t.Fatalf("Uninstall() error = %v", err)
 	}
 }
 

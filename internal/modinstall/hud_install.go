@@ -15,16 +15,9 @@ import (
 
 var ErrHUDConflict = errors.New("another installed mod overrides Libs/UI/hud.gfx")
 
-// InstallVersionedWithHUD is the explicit experimental installer path. It
-// refuses foreign HUD overrides before replacing this project's own mod.
-func InstallVersionedWithHUD(mainLanguage localization.Language, rows []localization.DialogueRow, hud []byte, version string) (string, error) {
-	documents, err := documentsPath()
-	if err != nil {
-		return "", err
-	}
-	return installIntoDocumentsVersionedWithHUD(documents, mainLanguage, rows, hud, version)
-}
-
+// Documents-specific single-language HUD installation remains only as a
+// focused legacy test helper. Product code uses the layout-aware multi-language
+// installer in multi_target.go.
 func installIntoDocumentsVersionedWithHUD(documents string, mainLanguage localization.Language, rows []localization.DialogueRow, hud []byte, version string) (string, error) {
 	if documents == "" {
 		return "", errors.New("Documents path is empty")
