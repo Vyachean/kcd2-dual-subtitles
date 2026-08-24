@@ -234,39 +234,63 @@ func chooseDirectHTMLRegisters(info inlineFunction2Info, body []byte) (textRegis
 	if savedRegister == 0 {
 		return 0, 0, fmt.Errorf("%w: no spare persistent register for original subtitle HTML", ErrSemanticMismatch)
 	}
-
-	hasReturn, err := flatBodyHasReturn(body)
-	if err != nil {
+	if err := validateDirectHTMLEarlyReturns(body); err != nil {
 		return 0, 0, fmt.Errorf("%w: inspect fc_setSubtitles return flow: %v", ErrSemanticMismatch, err)
-	}
-	if hasReturn {
-		return 0, 0, fmt.Errorf("%w: fc_setSubtitles contains ActionReturn before direct HTML postlude", ErrSemanticMismatch)
 	}
 	return textRegister, savedRegister, nil
 }
 
-func flatBodyHasReturn(actions []byte) (bool, error) {
+// validateDirectHTMLEarlyReturns allows the retail guard shape where an
+// ActionIf jumps exactly to the instruction after an early ActionReturn. The
+// direct-HTML postlude remains at function fallthrough, so guarded empty-text
+// exits stay vanilla while normal subtitle execution reaches the postlude.
+func validateDirectHTMLEarlyReturns(actions []byte) error {
+	bypassTargets := make(map[int]bool)
+	var returns []int
 	pos := 0
+
 	for pos < len(actions) {
+		start := pos
 		code := actions[pos]
 		pos++
 		if code == actionReturn {
-			return true, nil
+			returns = append(returns, start)
+			continue
 		}
 		if code < 0x80 {
 			continue
 		}
 		if len(actions)-pos < 2 {
-			return false, fmt.Errorf("truncated action length for 0x%02x", code)
+			return fmt.Errorf("truncated action length for 0x%02x", code)
 		}
 		length := int(binary.LittleEndian.Uint16(actions[pos : pos+2]))
 		pos += 2
 		if length > len(actions)-pos {
-			return false, fmt.Errorf("action 0x%02x data is truncated", code)
+			return fmt.Errorf("action 0x%02x data is truncated", code)
 		}
+		data := actions[pos : pos+length]
 		pos += length
+
+		if code != actionIf {
+			continue
+		}
+		if len(data) != 2 {
+			return fmt.Errorf("invalid ActionIf payload size %d", len(data))
+		}
+		target := pos + int(int16(binary.LittleEndian.Uint16(data)))
+		if target < 0 || target > len(actions) {
+			return fmt.Errorf("ActionIf target %d is outside function body", target)
+		}
+		bypassTargets[target] = true
 	}
-	return false, nil
+
+	for _, returnPos := range returns {
+		afterReturn := returnPos + 1
+		if afterReturn >= len(actions) || !bypassTargets[afterReturn] {
+			return fmt.Errorf("unguarded ActionReturn at byte offset %d", returnPos)
+		}
+	}
+	return nil
 }
 
 func buildDirectHTMLPrelude(textRegister, savedRegister byte) ([]byte, error) {
