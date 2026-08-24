@@ -3,6 +3,7 @@ package localization
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/subtitlepayload"
 )
@@ -46,10 +47,10 @@ func MergeDialogueRowsDifferentiated(main, secondary []DialogueRow, mainTag, sec
 	return mergeDialogueRows(main, secondary, mainTag, secondaryTag, formatDifferentiatedBilingual)
 }
 
-// MergeDialogueRowsHUDPrototype keeps the primary subtitle visible to the
-// vanilla HUD and carries a safely encoded secondary line in an invisible
-// project marker. The derived HUD wrapper reads that marker from the original
-// fc_setSubtitles argument after vanilla formatting has completed.
+// MergeDialogueRowsHUDPrototype emits the complete two-line Scaleform HTML for
+// the direct post-vanilla HUD acceptance path. The derived HUD stores this
+// original argument before vanilla processing and assigns it to htmlText only
+// after the retail global subtitle-size pass has completed.
 func MergeDialogueRowsHUDPrototype(main, secondary []DialogueRow, mainTag, secondaryTag string) ([]DialogueRow, MergeStats, error) {
 	return mergeDialogueRows(main, secondary, mainTag, secondaryTag, formatHUDPrototypeBilingual)
 }
@@ -126,7 +127,12 @@ func formatHUDPrototypeBilingual(mainText, secondaryText, mainTag, secondaryTag 
 		mainText = "[" + mainTag + "] " + mainText
 		secondaryText = "[" + secondaryTag + "] " + secondaryText
 	}
-	return subtitlepayload.WrapSecondary(secondaryText) + mainText
+
+	mainHTML := subtitlepayload.EncodeSecondaryHTML(mainText)
+	secondaryHTML := subtitlepayload.EncodeSecondaryHTML(secondaryText)
+	return "<p align='center'>" + mainHTML +
+		"<br/><font color='" + subtitlepayload.SecondaryColor + "' size='" + strconv.Itoa(subtitlepayload.SecondarySize) + "'><i>" +
+		secondaryHTML + "</i></font></p>"
 }
 
 func indexDialogueIDs(rows []DialogueRow, side string) (map[string]struct{}, error) {

@@ -7,10 +7,10 @@ import (
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/subtitlepayload"
 )
 
-func TestMergeDialogueRowsHUDPrototypeCarriesSecondaryBeforeVisiblePrimary(t *testing.T) {
+func TestMergeDialogueRowsHUDPrototypeEmitsCompleteScaleformHTML(t *testing.T) {
 	rows, stats, err := MergeDialogueRowsHUDPrototype(
-		[]DialogueRow{{ID: "id", Text: "Основной"}},
-		[]DialogueRow{{ID: "id", Text: "Secondary <br/> line"}},
+		[]DialogueRow{{ID: "id", Text: "Основной <br/> line"}},
+		[]DialogueRow{{ID: "id", Text: "Secondary <b>unsafe</b> <br/> line"}},
 		"RU",
 		"EN",
 	)
@@ -20,16 +20,28 @@ func TestMergeDialogueRowsHUDPrototypeCarriesSecondaryBeforeVisiblePrimary(t *te
 	if stats.Bilingual != 1 {
 		t.Fatalf("Bilingual = %d, want 1", stats.Bilingual)
 	}
-	want := subtitlepayload.Prefix + "[EN] Secondary <br/> line" + subtitlepayload.Suffix + "[RU] Основной"
-	if rows[0].Text != want {
-		t.Fatalf("merged text = %q, want %q", rows[0].Text, want)
+
+	got := rows[0].Text
+	for _, want := range []string{
+		"<p align='center'>",
+		"[RU] Основной <br/> line",
+		"<br/><font color='" + subtitlepayload.SecondaryColor + "' size='24'><i>",
+		"[EN] Secondary &lt;b&gt;unsafe&lt;/b&gt; <br/> line",
+		"</i></font></p>",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("merged text = %q, missing %q", got, want)
+		}
 	}
-	if strings.Contains(rows[0].Text, BilingualSeparator) {
-		t.Fatalf("HUD payload unexpectedly contains legacy separator: %q", rows[0].Text)
+	if strings.Contains(got, subtitlepayload.Prefix) || strings.Contains(got, subtitlepayload.Suffix) {
+		t.Fatalf("direct HTML payload unexpectedly contains carrier sentinel: %q", got)
+	}
+	if strings.Contains(got, BilingualSeparator) {
+		t.Fatalf("direct HTML payload unexpectedly contains legacy separator: %q", got)
 	}
 }
 
-func TestMergeDialogueRowsHUDPrototypeLeavesFallbacksUnmarked(t *testing.T) {
+func TestMergeDialogueRowsHUDPrototypeLeavesFallbacksPlain(t *testing.T) {
 	main := []DialogueRow{
 		{ID: "identical", Text: "same"},
 		{ID: "missing", Text: "main only"},
@@ -46,8 +58,8 @@ func TestMergeDialogueRowsHUDPrototypeLeavesFallbacksUnmarked(t *testing.T) {
 		t.Fatalf("MergeDialogueRowsHUDPrototype() error = %v", err)
 	}
 	for i, row := range rows {
-		if strings.Contains(row.Text, subtitlepayload.Prefix) {
-			t.Fatalf("fallback row %d unexpectedly contains HUD marker: %q", i, row.Text)
+		if strings.Contains(row.Text, "<font") || strings.Contains(row.Text, "<p") {
+			t.Fatalf("fallback row %d unexpectedly contains HUD HTML: %q", i, row.Text)
 		}
 	}
 }
