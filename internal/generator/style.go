@@ -14,25 +14,35 @@ import (
 // HUD Stage C1 prototype.
 type SubtitleStyle string
 
+// HUDShadowIntensity is the user-facing amount of direct TextField shadow.
+// The presets intentionally expose a small stable product API instead of raw
+// Scaleform blur/distance/strength knobs.
+type HUDShadowIntensity string
+
 const (
 	SubtitleStyleTagged         SubtitleStyle = "tagged"
 	SubtitleStyleDifferentiated SubtitleStyle = "differentiated"
 	SubtitleStyleHUD            SubtitleStyle = "hud"
 
-	DefaultHUDSecondaryColor = subtitlepayload.SecondaryColor
-	DefaultHUDSecondarySize  = subtitlepayload.SecondarySize
-	DefaultHUDShadowColor    = "#000000"
-	MinHUDSecondarySize      = 12
-	MaxHUDSecondarySize      = 48
-	MinHUDPrimarySize        = MinHUDSecondarySize
-	MaxHUDPrimarySize        = MaxHUDSecondarySize
+	HUDShadowSubtle HUDShadowIntensity = "subtle"
+	HUDShadowNormal HUDShadowIntensity = "normal"
+	HUDShadowStrong HUDShadowIntensity = "strong"
+
+	DefaultHUDSecondaryColor  = subtitlepayload.SecondaryColor
+	DefaultHUDSecondarySize   = subtitlepayload.SecondarySize
+	DefaultHUDShadowColor     = "#000000"
+	DefaultHUDShadowIntensity = HUDShadowNormal
+	MinHUDSecondarySize       = 12
+	MaxHUDSecondarySize       = 48
+	MinHUDPrimarySize         = MinHUDSecondarySize
+	MaxHUDPrimarySize         = MaxHUDSecondarySize
 )
 
 // HUDPresentationConfig controls generation-time presentation for the proven
 // direct-HTML HUD path. Empty PrimaryColor and zero PrimarySize mean that the
 // corresponding primary-line property remains controlled by the retail game.
 // Outline and Shadow are common whole-TextField effects and are off by default.
-// ShadowColor defaults to black and is used only when Shadow is enabled.
+// ShadowColor and ShadowIntensity are used only when Shadow is enabled.
 type HUDPresentationConfig struct {
 	PrimaryColor     string
 	PrimarySize      int
@@ -44,6 +54,7 @@ type HUDPresentationConfig struct {
 	Outline          bool
 	Shadow           bool
 	ShadowColor      string
+	ShadowIntensity  HUDShadowIntensity
 }
 
 // DefaultHUDPresentationConfig returns the live-proven presentation, leaves the
@@ -55,6 +66,7 @@ func DefaultHUDPresentationConfig() HUDPresentationConfig {
 		SecondaryItalic:  true,
 		ShowLanguageTags: true,
 		ShadowColor:      DefaultHUDShadowColor,
+		ShadowIntensity:  DefaultHUDShadowIntensity,
 	}
 }
 
@@ -122,6 +134,16 @@ func normalizeHUDPresentation(style SubtitleStyle, configured *HUDPresentationCo
 	}
 	if !validHUDColor(presentation.ShadowColor) {
 		return HUDPresentationConfig{}, fmt.Errorf("%w: shadow color must use #RRGGBB format", ErrInvalidRequest)
+	}
+
+	presentation.ShadowIntensity = HUDShadowIntensity(strings.ToLower(strings.TrimSpace(string(presentation.ShadowIntensity))))
+	if presentation.ShadowIntensity == "" {
+		presentation.ShadowIntensity = DefaultHUDShadowIntensity
+	}
+	switch presentation.ShadowIntensity {
+	case HUDShadowSubtle, HUDShadowNormal, HUDShadowStrong:
+	default:
+		return HUDPresentationConfig{}, fmt.Errorf("%w: unsupported shadow intensity %q", ErrInvalidRequest, presentation.ShadowIntensity)
 	}
 	return presentation, nil
 }
