@@ -20,6 +20,7 @@ type presentationInput struct {
 	Outline          bool
 	Shadow           bool
 	ShadowColor      string
+	ShadowIntensity  generator.HUDShadowIntensity
 }
 
 func defaultPresentationInput() presentationInput {
@@ -36,6 +37,7 @@ func defaultPresentationInput() presentationInput {
 		Outline:          defaults.Outline,
 		Shadow:           defaults.Shadow,
 		ShadowColor:      defaults.ShadowColor,
+		ShadowIntensity:  defaults.ShadowIntensity,
 	}
 }
 
@@ -66,6 +68,7 @@ func (input presentationInput) hudPresentation() (*generator.HUDPresentationConf
 		Outline:          input.Outline,
 		Shadow:           input.Shadow,
 		ShadowColor:      input.ShadowColor,
+		ShadowIntensity:  input.ShadowIntensity,
 	})
 	if err != nil {
 		return nil, err
