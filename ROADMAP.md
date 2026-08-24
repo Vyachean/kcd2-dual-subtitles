@@ -4,7 +4,7 @@
 
 KCD2 Dual Subtitles is a dependency-light Windows tool that builds bilingual dialogue subtitles from localization files already installed with Kingdom Come: Deliverance II.
 
-The currently validated platform is KCD2 1.5.6 from Xbox / Microsoft Store on PC.
+The compatibility contract is **store-neutral**: Steam, GOG, Epic Games Store, Xbox / Microsoft Store and other Windows distributions use the same generator when they expose a compatible KCD2 `Content` layout. The retail acceptance environment used during v0.3 development was KCD2 1.5.6 from Xbox / Microsoft Store; that is evidence, not a product restriction.
 
 ## Development rules
 
@@ -15,6 +15,7 @@ The currently validated platform is KCD2 1.5.6 from Xbox / Microsoft Store on PC
 5. Fail closed when game UI/PAK structure is incompatible or when another mod supplies an unknown HUD override.
 6. Prefer the Go standard library and one Windows executable containing both GUI and CLI entrypoints.
 7. Treat live in-game behavior as a separate acceptance gate when CI cannot prove it.
+8. Never make store/launcher identity a requirement for generation; validate the KCD2 file structure instead.
 
 ## v0.1 — localization baseline
 
@@ -28,7 +29,7 @@ Delivered and retail-validated:
 - patch-only localization PAK generation;
 - portable ZIP output;
 - Windows Documents installation and safe `mod_order.txt` integration;
-- ordinary and story/cutscene dialogue in the Xbox / Microsoft Store retail build.
+- ordinary and story/cutscene dialogue in the original retail acceptance environment.
 
 ## v0.2 — native Windows usability
 
@@ -36,7 +37,7 @@ The v0.2 implementation was completed and published as an RC, then absorbed into
 
 Delivered:
 
-- Xbox / Microsoft Store autodetection;
+- Microsoft GDK/Xbox autodetection;
 - `.GamingRoot` custom-root discovery;
 - manual Browse fallback;
 - native Win32 GUI;
@@ -50,7 +51,7 @@ Issue #36 is historical/superseded by the v0.3 stable release.
 
 ## v0.3 — stable fixed-pair styled subtitles
 
-Status: **release-ready** after the v0.3 RC retail acceptance cycle.
+Status: **stable**. `v0.3.0` established the feature set; `v0.3.1` removes the remaining store/language-specific game-root assumption.
 
 The stable v0.3 contract is intentionally a **generation-time fixed pair**, not the larger runtime-language architecture originally explored in #39.
 
@@ -61,6 +62,8 @@ The stable v0.3 contract is intentionally a **generation-time fixed pair**, not 
 - [x] English-first neutral GUI default instead of a Russian-specific default;
 - [x] selected Main/Secondary languages are text sources only;
 - [x] generated localization patches are emitted for every supported installed game-language slot, so the selected pair works independently of KCD2's current text language;
+- [x] game-root validation requires no specific language pair;
+- [x] store/launcher identity is not part of game-root validation or generation;
 - [x] preserve identical/missing/empty translation fallbacks;
 - [x] safe portable ZIP and automatic installation paths.
 
@@ -115,9 +118,9 @@ path rather than the proven `fc_setSubtitles` / `fc_setBubbleText` paths. This r
 
 The original v0.3 research issue described a larger architecture where one installed universal mod would switch secondary language/style inside KCD2.
 
-That work is **not part of stable v0.3.0**. Future work should still begin with the narrow retail proof that a project-owned generated localization key can be resolved safely through `TextExtension.translateString`, then proceed to runtime session state and Menu.gfx integration only if that proof succeeds.
+That work is **not part of the stable v0.3 fixed-pair contract**. Future work should still begin with the narrow retail proof that a project-owned generated localization key can be resolved safely through `TextExtension.translateString`, then proceed to runtime session state and Menu.gfx integration only if that proof succeeds.
 
-No KCSE, MCM, LuaDB, ASI loader or `dinput8.dll` dependency is planned for the Xbox-first baseline.
+No KCSE, MCM, LuaDB, ASI loader or `dinput8.dll` dependency is planned for the dependency-free Windows baseline.
 
 ### Presentation preview
 
@@ -125,7 +128,8 @@ A live/approximate preview was deliberately deferred from v0.3.0. If implemented
 
 ### Other possible future work
 
-- Steam/GOG/Epic autodetection and explicit retail validation;
+- broader automatic discovery of Steam/GOG/Epic/custom launcher library locations (manual Browse is already supported and remains authoritative);
+- separate retail acceptance runs on additional storefront builds;
 - additional bilingual categories such as quests, items, tutorials or codex;
 - persisted presentation profiles;
 - application self-update;
