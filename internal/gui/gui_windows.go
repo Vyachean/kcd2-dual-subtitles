@@ -156,6 +156,7 @@ type nativeWindow struct {
 	shadowCheckbox           uintptr
 	shadowColorEdit          uintptr
 	shadowColorPickerButton  uintptr
+	shadowIntensityCombo     uintptr
 	primaryColorEdit         uintptr
 	primaryColorPickerButton uintptr
 	primarySizeEdit          uintptr
@@ -409,6 +410,15 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 		return err
 	}
 	w.shadowColorPickerButton = shadowColorPicker
+	if _, err := w.createControl("STATIC", "Intensity", wsChild|wsVisible, 390, 453, 65, 22, 0); err != nil {
+		return err
+	}
+	shadowIntensityCombo, err := w.createControl("COMBOBOX", "", wsChild|wsVisible|wsTabStop|wsVScroll|cbsDropdownList, 460, 448, 130, 110, 0)
+	if err != nil {
+		return err
+	}
+	w.shadowIntensityCombo = shadowIntensityCombo
+	w.initializeShadowIntensityCombo()
 	w.updatePresentationControls()
 
 	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 16, 500, 210, 36, idGenerateButton)
@@ -660,6 +670,7 @@ func (w *nativeWindow) currentPresentationInput() presentationInput {
 		Outline:          w.checked(w.outlineCheckbox),
 		Shadow:           w.checked(w.shadowCheckbox),
 		ShadowColor:      w.text(w.shadowColorEdit),
+		ShadowIntensity:  w.selectedShadowIntensity(),
 	}
 }
 
@@ -677,12 +688,13 @@ func (w *nativeWindow) setBusy(busy bool) {
 
 func (w *nativeWindow) updatePresentationControls() {
 	enabled := !w.busy && w.checked(w.styledCheckbox)
-	shadowColorEnabled := enabled && w.checked(w.shadowCheckbox)
+	shadowControlsEnabled := enabled && w.checked(w.shadowCheckbox)
 	w.enable(w.tagsCheckbox, enabled)
 	w.enable(w.outlineCheckbox, enabled)
 	w.enable(w.shadowCheckbox, enabled)
-	w.enable(w.shadowColorEdit, shadowColorEnabled)
-	w.enable(w.shadowColorPickerButton, shadowColorEnabled)
+	w.enable(w.shadowColorEdit, shadowControlsEnabled)
+	w.enable(w.shadowColorPickerButton, shadowControlsEnabled)
+	w.enable(w.shadowIntensityCombo, shadowControlsEnabled)
 	w.enable(w.primaryColorEdit, enabled)
 	w.enable(w.primaryColorPickerButton, enabled)
 	w.enable(w.primarySizeEdit, enabled)
