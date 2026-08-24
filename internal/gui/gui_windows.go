@@ -154,6 +154,8 @@ type nativeWindow struct {
 	tagsCheckbox             uintptr
 	outlineCheckbox          uintptr
 	shadowCheckbox           uintptr
+	shadowColorEdit          uintptr
+	shadowColorPickerButton  uintptr
 	primaryColorEdit         uintptr
 	primaryColorPickerButton uintptr
 	primarySizeEdit          uintptr
@@ -319,7 +321,7 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 	w.outlineCheckbox = outline
 	w.setChecked(w.outlineCheckbox, w.presentation.Outline)
 
-	shadow, err := w.createControl("BUTTON", "Shadow", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 520, 245, 100, 24, 0)
+	shadow, err := w.createControl("BUTTON", "Shadow", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 520, 245, 100, 24, idShadowCheckbox)
 	if err != nil {
 		return err
 	}
@@ -393,6 +395,20 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 	if _, err := w.createControl("STATIC", "The secondary line uses explicit presentation settings.", wsChild|wsVisible, 400, 382, 285, 44, 0); err != nil {
 		return err
 	}
+
+	if _, err := w.createControl("STATIC", "Shadow color", wsChild|wsVisible, 50, 453, 90, 22, 0); err != nil {
+		return err
+	}
+	shadowColorEdit, err := w.createControl("EDIT", w.presentation.ShadowColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 145, 449, 105, 26, 0)
+	if err != nil {
+		return err
+	}
+	w.shadowColorEdit = shadowColorEdit
+	shadowColorPicker, err := w.createControl("BUTTON", "Color...", wsChild|wsVisible|wsTabStop, 260, 448, 90, 28, idShadowColorPickerButton)
+	if err != nil {
+		return err
+	}
+	w.shadowColorPickerButton = shadowColorPicker
 	w.updatePresentationControls()
 
 	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 16, 500, 210, 36, idGenerateButton)
@@ -488,12 +504,14 @@ func (w *nativeWindow) handleCommand(id uint16) {
 		w.generateAndInstall()
 	case idUninstallButton:
 		w.uninstall()
-	case idStyledCheckbox:
+	case idStyledCheckbox, idShadowCheckbox:
 		w.updatePresentationControls()
 	case idColorPickerButton:
 		w.chooseSecondaryColor()
 	case idPrimaryColorPickerButton:
 		w.choosePrimaryColor()
+	case idShadowColorPickerButton:
+		w.chooseShadowColor()
 	}
 }
 
@@ -641,6 +659,7 @@ func (w *nativeWindow) currentPresentationInput() presentationInput {
 		SecondaryItalic:  w.checked(w.italicCheckbox),
 		Outline:          w.checked(w.outlineCheckbox),
 		Shadow:           w.checked(w.shadowCheckbox),
+		ShadowColor:      w.text(w.shadowColorEdit),
 	}
 }
 
@@ -658,9 +677,12 @@ func (w *nativeWindow) setBusy(busy bool) {
 
 func (w *nativeWindow) updatePresentationControls() {
 	enabled := !w.busy && w.checked(w.styledCheckbox)
+	shadowColorEnabled := enabled && w.checked(w.shadowCheckbox)
 	w.enable(w.tagsCheckbox, enabled)
 	w.enable(w.outlineCheckbox, enabled)
 	w.enable(w.shadowCheckbox, enabled)
+	w.enable(w.shadowColorEdit, shadowColorEnabled)
+	w.enable(w.shadowColorPickerButton, shadowColorEnabled)
 	w.enable(w.primaryColorEdit, enabled)
 	w.enable(w.primaryColorPickerButton, enabled)
 	w.enable(w.primarySizeEdit, enabled)
