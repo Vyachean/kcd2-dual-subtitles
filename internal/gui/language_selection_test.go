@@ -6,15 +6,27 @@ import (
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 )
 
-func TestPreferredLanguageIndexesUsesRussianEnglishDefaults(t *testing.T) {
+func TestPreferredLanguageIndexesUsesEnglishNeutralDefault(t *testing.T) {
 	languages := []localization.LanguageInfo{
 		{Language: localization.English},
 		{Language: localization.German},
 		{Language: localization.Russian},
 	}
 	main, secondary := preferredLanguageIndexes(languages, "", "")
-	if main != 2 || secondary != 0 {
-		t.Fatalf("indexes = %d, %d; want RU=2 EN=0", main, secondary)
+	if main != 0 || secondary != 1 {
+		t.Fatalf("indexes = %d, %d; want EN=0 and first distinct language=1", main, secondary)
+	}
+}
+
+func TestPreferredLanguageIndexesDoesNotPreferRussian(t *testing.T) {
+	languages := []localization.LanguageInfo{
+		{Language: localization.German},
+		{Language: localization.Russian},
+		{Language: localization.French},
+	}
+	main, secondary := preferredLanguageIndexes(languages, "", "")
+	if main != 0 || secondary != 1 {
+		t.Fatalf("indexes = %d, %d; want first two installed languages 0,1", main, secondary)
 	}
 }
 

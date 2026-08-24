@@ -18,7 +18,7 @@ func preferredLanguageIndexes(languages []localization.LanguageInfo, previousMai
 
 	mainIndex = languageIndex(languages, previousMain)
 	if mainIndex < 0 {
-		mainIndex = languageIndex(languages, localization.Russian)
+		mainIndex = languageIndex(languages, localization.English)
 	}
 	if mainIndex < 0 {
 		mainIndex = 0
@@ -27,12 +27,6 @@ func preferredLanguageIndexes(languages []localization.LanguageInfo, previousMai
 	secondaryIndex = languageIndex(languages, previousSecondary)
 	if secondaryIndex == mainIndex {
 		secondaryIndex = -1
-	}
-	if secondaryIndex < 0 {
-		english := languageIndex(languages, localization.English)
-		if english >= 0 && english != mainIndex {
-			secondaryIndex = english
-		}
 	}
 	if secondaryIndex < 0 {
 		for i := range languages {
