@@ -19,7 +19,7 @@ const CanaryPrefix = "[KCD2DS TEST] "
 var (
 	ErrInvalidRequest = errors.New("invalid generation request")
 	readRetailHUD     = gameassets.ReadHUD
-	patchRetailHUD    = gfxpatch.PatchHUD
+	patchRetailHUD    = gfxpatch.PatchHUDDiagnostic
 )
 
 // Request describes one end-to-end mod generation operation. An empty
