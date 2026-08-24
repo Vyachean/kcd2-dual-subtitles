@@ -21,3 +21,12 @@ func parseHexRGB(value string) (red, green, blue byte, ok bool) {
 func formatHexRGB(red, green, blue byte) string {
 	return fmt.Sprintf("#%02X%02X%02X", red, green, blue)
 }
+
+// Win32 COLORREF stores bytes as 0x00BBGGRR rather than RGB order.
+func rgbToColorRef(red, green, blue byte) uint32 {
+	return uint32(red) | uint32(green)<<8 | uint32(blue)<<16
+}
+
+func colorRefToRGB(value uint32) (red, green, blue byte) {
+	return byte(value), byte(value >> 8), byte(value >> 16)
+}
