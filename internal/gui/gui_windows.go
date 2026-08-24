@@ -25,6 +25,7 @@ const (
 	wsVScroll       = 0x00200000
 	esAutoHScroll   = 0x0080
 	cbsDropdownList = 0x0003
+	bsAutoCheckbox  = 0x0003
 
 	wmCreate  = 0x0001
 	wmDestroy = 0x0002
@@ -34,6 +35,11 @@ const (
 	cbAddString = 0x0143
 	cbGetCurSel = 0x0147
 	cbSetCurSel = 0x014E
+	bmGetCheck  = 0x00F0
+	bmSetCheck  = 0x00F1
+
+	bstUnchecked = 0
+	bstChecked   = 1
 
 	swShow = 5
 
@@ -56,6 +62,7 @@ const (
 	idBrowseButton    = 1001
 	idGenerateButton  = 1002
 	idUninstallButton = 1003
+	idStyledCheckbox  = 1004
 )
 
 var (
@@ -132,14 +139,21 @@ type browseInfo struct {
 }
 
 type nativeWindow struct {
-	service application.Service
-	model   Model
-	version string
+	service      application.Service
+	model        Model
+	version      string
+	presentation presentationInput
+	busy         bool
 
 	hwnd            uintptr
 	gameEdit        uintptr
 	mainCombo       uintptr
 	secondaryCombo  uintptr
+	styledCheckbox  uintptr
+	tagsCheckbox    uintptr
+	colorEdit       uintptr
+	sizeEdit        uintptr
+	italicCheckbox  uintptr
 	generateButton  uintptr
 	uninstallButton uintptr
 	statusLabel     uintptr
@@ -162,10 +176,11 @@ func Run(version string) int {
 	model := NewModel(detection, detectionErr, installation, installationErr)
 
 	window := &nativeWindow{
-		service:   service,
-		model:     model,
-		version:   version,
-		languages: localization.SupportedLanguages(),
+		service:      service,
+		model:        model,
+		version:      version,
+		presentation: defaultPresentationInput(),
+		languages:    localization.SupportedLanguages(),
 	}
 	activeWindow = window
 	defer func() { activeWindow = nil }()
@@ -211,7 +226,7 @@ func (w *nativeWindow) create() error {
 		180,
 		120,
 		660,
-		360,
+		510,
 		0,
 		0,
 		instance,
@@ -277,19 +292,59 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 		}
 	}
 
-	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 20, 185, 190, 34, idGenerateButton)
+	styled, err := w.createControl("BUTTON", "Styled secondary subtitles", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 20, 176, 230, 24, idStyledCheckbox)
+	if err != nil {
+		return err
+	}
+	w.styledCheckbox = styled
+	w.setChecked(w.styledCheckbox, w.presentation.Styled)
+
+	tags, err := w.createControl("BUTTON", "Show language tags", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 40, 208, 180, 24, 0)
+	if err != nil {
+		return err
+	}
+	w.tagsCheckbox = tags
+	w.setChecked(w.tagsCheckbox, w.presentation.ShowLanguageTags)
+
+	if _, err := w.createControl("STATIC", "Secondary color", wsChild|wsVisible, 40, 243, 115, 22, 0); err != nil {
+		return err
+	}
+	colorEdit, err := w.createControl("EDIT", w.presentation.SecondaryColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 165, 239, 110, 26, 0)
+	if err != nil {
+		return err
+	}
+	w.colorEdit = colorEdit
+
+	if _, err := w.createControl("STATIC", "Secondary size", wsChild|wsVisible, 300, 243, 100, 22, 0); err != nil {
+		return err
+	}
+	sizeEdit, err := w.createControl("EDIT", w.presentation.SecondarySize, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 410, 239, 70, 26, 0)
+	if err != nil {
+		return err
+	}
+	w.sizeEdit = sizeEdit
+
+	italic, err := w.createControl("BUTTON", "Italic secondary line", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 40, 276, 180, 24, 0)
+	if err != nil {
+		return err
+	}
+	w.italicCheckbox = italic
+	w.setChecked(w.italicCheckbox, w.presentation.SecondaryItalic)
+	w.updatePresentationControls()
+
+	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 20, 320, 190, 34, idGenerateButton)
 	if err != nil {
 		return err
 	}
 	w.generateButton = generate
-	uninstall, err := w.createControl("BUTTON", "Uninstall", wsChild|wsVisible|wsTabStop, 225, 185, 120, 34, idUninstallButton)
+	uninstall, err := w.createControl("BUTTON", "Uninstall", wsChild|wsVisible|wsTabStop, 225, 320, 120, 34, idUninstallButton)
 	if err != nil {
 		return err
 	}
 	w.uninstallButton = uninstall
 	w.enable(w.uninstallButton, w.model.InstallationKnown && w.model.Installed)
 
-	status, err := w.createControl("STATIC", w.model.Status, wsChild|wsVisible, 20, 242, 605, 62, 0)
+	status, err := w.createControl("STATIC", w.model.Status, wsChild|wsVisible, 20, 377, 605, 72, 0)
 	if err != nil {
 		return err
 	}
@@ -369,6 +424,8 @@ func (w *nativeWindow) handleCommand(id uint16) {
 		w.generateAndInstall()
 	case idUninstallButton:
 		w.uninstall()
+	case idStyledCheckbox:
+		w.updatePresentationControls()
 	}
 }
 
@@ -415,9 +472,18 @@ func (w *nativeWindow) generateAndInstall() {
 		return
 	}
 
+	input := w.currentPresentationInput()
+	presentation, err := input.hudPresentation()
+	if err != nil {
+		w.setStatus("Fix the subtitle presentation settings before generating.")
+		showMessage(w.hwnd, "Subtitle presentation", err.Error(), mbOK|mbIconError)
+		return
+	}
+
+	w.presentation = input
 	w.setBusy(true)
 	w.setStatus("Generating and installing bilingual subtitle patch...")
-	result, err := w.service.GenerateAndInstall(normalized, main, secondary)
+	result, err := w.service.GenerateAndInstallWithPresentation(normalized, main, secondary, presentation)
 	w.setBusy(false)
 	if err != nil {
 		w.setStatus("Generation failed. No successful replacement was published.")
@@ -476,13 +542,50 @@ func (w *nativeWindow) selectedLanguage(combo uintptr) (localization.Language, b
 	return w.languages[index].Language, true
 }
 
+func (w *nativeWindow) currentPresentationInput() presentationInput {
+	return presentationInput{
+		Styled:           w.checked(w.styledCheckbox),
+		ShowLanguageTags: w.checked(w.tagsCheckbox),
+		SecondaryColor:   w.text(w.colorEdit),
+		SecondarySize:    w.text(w.sizeEdit),
+		SecondaryItalic:  w.checked(w.italicCheckbox),
+	}
+}
+
 func (w *nativeWindow) setBusy(busy bool) {
+	w.busy = busy
 	enabled := !busy
 	w.enable(w.gameEdit, enabled)
 	w.enable(w.mainCombo, enabled)
 	w.enable(w.secondaryCombo, enabled)
+	w.enable(w.styledCheckbox, enabled)
 	w.enable(w.generateButton, enabled)
 	w.enable(w.uninstallButton, enabled && w.model.InstallationKnown && w.model.Installed)
+	w.updatePresentationControls()
+}
+
+func (w *nativeWindow) updatePresentationControls() {
+	enabled := !w.busy && w.checked(w.styledCheckbox)
+	w.enable(w.tagsCheckbox, enabled)
+	w.enable(w.colorEdit, enabled)
+	w.enable(w.sizeEdit, enabled)
+	w.enable(w.italicCheckbox, enabled)
+}
+
+func (w *nativeWindow) checked(hwnd uintptr) bool {
+	if hwnd == 0 {
+		return false
+	}
+	value, _, _ := procSendMessageW.Call(hwnd, bmGetCheck, 0, 0)
+	return value == bstChecked
+}
+
+func (w *nativeWindow) setChecked(hwnd uintptr, checked bool) {
+	value := uintptr(bstUnchecked)
+	if checked {
+		value = bstChecked
+	}
+	procSendMessageW.Call(hwnd, bmSetCheck, value, 0)
 }
 
 func (w *nativeWindow) setStatus(status string) {
