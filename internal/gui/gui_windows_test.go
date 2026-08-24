@@ -17,6 +17,9 @@ func TestWin32StructSizesAMD64(t *testing.T) {
 	if got := unsafe.Sizeof(browseInfo{}); got != 64 {
 		t.Fatalf("BROWSEINFOW-compatible size = %d, want 64", got)
 	}
+	if got := unsafe.Sizeof(chooseColor{}); got != 72 {
+		t.Fatalf("CHOOSECOLORW-compatible size = %d, want 72", got)
+	}
 }
 
 func TestUTF16Helper(t *testing.T) {

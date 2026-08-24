@@ -137,7 +137,7 @@ func TestBuildArchiveBytesDeterministic(t *testing.T) {
 func TestBuildRejectsUnsupportedLanguage(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "mod.zip")
 
-	err := Build(output, localization.Language("German"), []localization.DialogueRow{{ID: "id"}})
+	err := Build(output, localization.Language("Klingon"), []localization.DialogueRow{{ID: "id"}})
 	if !errors.Is(err, ErrUnsupportedLanguage) {
 		t.Fatalf("Build() error = %v, want errors.Is(..., ErrUnsupportedLanguage)", err)
 	}

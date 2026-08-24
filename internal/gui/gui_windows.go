@@ -145,21 +145,23 @@ type nativeWindow struct {
 	presentation presentationInput
 	busy         bool
 
-	hwnd            uintptr
-	gameEdit        uintptr
-	mainCombo       uintptr
-	secondaryCombo  uintptr
-	styledCheckbox  uintptr
-	tagsCheckbox    uintptr
-	colorEdit       uintptr
-	sizeEdit        uintptr
-	italicCheckbox  uintptr
-	generateButton  uintptr
-	uninstallButton uintptr
-	statusLabel     uintptr
-	font            uintptr
-	startupErr      error
-	languages       []localization.LanguageInfo
+	hwnd              uintptr
+	gameEdit          uintptr
+	mainCombo         uintptr
+	secondaryCombo    uintptr
+	styledCheckbox    uintptr
+	tagsCheckbox      uintptr
+	colorEdit         uintptr
+	colorPickerButton uintptr
+	sizeEdit          uintptr
+	italicCheckbox    uintptr
+	generateButton    uintptr
+	uninstallButton   uintptr
+	statusLabel       uintptr
+	font              uintptr
+	startupErr        error
+	languages         []localization.LanguageInfo
+	customColors      [16]uint32
 }
 
 var activeWindow *nativeWindow
@@ -180,7 +182,6 @@ func Run(version string) int {
 		model:        model,
 		version:      version,
 		presentation: defaultPresentationInput(),
-		languages:    localization.SupportedLanguages(),
 	}
 	activeWindow = window
 	defer func() { activeWindow = nil }()
@@ -280,16 +281,8 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 	}
 	w.secondaryCombo = secondaryCombo
 
-	for i, info := range w.languages {
-		text := mustUTF16(string(info.Language))
-		procSendMessageW.Call(w.mainCombo, cbAddString, 0, uintptr(unsafe.Pointer(text)))
-		procSendMessageW.Call(w.secondaryCombo, cbAddString, 0, uintptr(unsafe.Pointer(text)))
-		if info.Language == localization.Russian {
-			procSendMessageW.Call(w.mainCombo, cbSetCurSel, uintptr(i), 0)
-		}
-		if info.Language == localization.English {
-			procSendMessageW.Call(w.secondaryCombo, cbSetCurSel, uintptr(i), 0)
-		}
+	if err := w.refreshLanguageControls(w.model.GameRoot); err != nil {
+		return fmt.Errorf("discover installed languages: %w", err)
 	}
 
 	styled, err := w.createControl("BUTTON", "Styled secondary subtitles", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 20, 176, 230, 24, idStyledCheckbox)
@@ -314,6 +307,11 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 		return err
 	}
 	w.colorEdit = colorEdit
+	colorPicker, err := w.createControl("BUTTON", "Choose...", wsChild|wsVisible|wsTabStop, 490, 239, 85, 26, idColorPickerButton)
+	if err != nil {
+		return err
+	}
+	w.colorPickerButton = colorPicker
 
 	if _, err := w.createControl("STATIC", "Secondary size", wsChild|wsVisible, 300, 243, 100, 22, 0); err != nil {
 		return err
@@ -337,6 +335,7 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 		return err
 	}
 	w.generateButton = generate
+	w.enable(w.generateButton, len(w.languages) >= 2)
 	uninstall, err := w.createControl("BUTTON", "Uninstall", wsChild|wsVisible|wsTabStop, 225, 320, 120, 34, idUninstallButton)
 	if err != nil {
 		return err
@@ -426,6 +425,8 @@ func (w *nativeWindow) handleCommand(id uint16) {
 		w.uninstall()
 	case idStyledCheckbox:
 		w.updatePresentationControls()
+	case idColorPickerButton:
+		w.chooseSecondaryColor()
 	}
 }
 
@@ -440,10 +441,19 @@ func (w *nativeWindow) browse() {
 		showMessage(w.hwnd, "Invalid game folder", err.Error(), mbOK|mbIconError)
 		return
 	}
+	if err := w.refreshLanguageControls(normalized); err != nil {
+		w.setStatus("Could not inspect installed localization languages.")
+		showMessage(w.hwnd, "Language discovery", err.Error(), mbOK|mbIconError)
+		return
+	}
 	w.setText(w.gameEdit, normalized)
 	w.model.GameRoot = normalized
 	w.model.AutoDetected = false
-	w.setStatus("Game folder selected. Ready to generate and install.")
+	if err := w.requireAtLeastTwoInstalledLanguages(); err != nil {
+		w.setStatus(err.Error())
+		return
+	}
+	w.setStatus(fmt.Sprintf("Game folder selected. Found %d supported subtitle languages.", len(w.languages)))
 }
 
 func (w *nativeWindow) generateAndInstall() {
@@ -455,6 +465,16 @@ func (w *nativeWindow) generateAndInstall() {
 		return
 	}
 	w.setText(w.gameEdit, normalized)
+	if err := w.refreshLanguageControls(normalized); err != nil {
+		w.setStatus("Could not inspect installed localization languages.")
+		showMessage(w.hwnd, "Language discovery", err.Error(), mbOK|mbIconError)
+		return
+	}
+	if err := w.requireAtLeastTwoInstalledLanguages(); err != nil {
+		w.setStatus(err.Error())
+		showMessage(w.hwnd, "Language selection", err.Error(), mbOK|mbIconError)
+		return
+	}
 
 	main, ok := w.selectedLanguage(w.mainCombo)
 	if !ok {
@@ -556,10 +576,10 @@ func (w *nativeWindow) setBusy(busy bool) {
 	w.busy = busy
 	enabled := !busy
 	w.enable(w.gameEdit, enabled)
-	w.enable(w.mainCombo, enabled)
-	w.enable(w.secondaryCombo, enabled)
+	w.enable(w.mainCombo, enabled && len(w.languages) > 0)
+	w.enable(w.secondaryCombo, enabled && len(w.languages) > 1)
 	w.enable(w.styledCheckbox, enabled)
-	w.enable(w.generateButton, enabled)
+	w.enable(w.generateButton, enabled && len(w.languages) >= 2)
 	w.enable(w.uninstallButton, enabled && w.model.InstallationKnown && w.model.Installed)
 	w.updatePresentationControls()
 }
@@ -568,6 +588,7 @@ func (w *nativeWindow) updatePresentationControls() {
 	enabled := !w.busy && w.checked(w.styledCheckbox)
 	w.enable(w.tagsCheckbox, enabled)
 	w.enable(w.colorEdit, enabled)
+	w.enable(w.colorPickerButton, enabled)
 	w.enable(w.sizeEdit, enabled)
 	w.enable(w.italicCheckbox, enabled)
 }
