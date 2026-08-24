@@ -39,8 +39,9 @@ func New(version string) Service {
 	}
 }
 
-// DetectGame returns all structurally valid Xbox / Microsoft Store KCD2
-// candidates. Callers may auto-select only when Result.Unique succeeds.
+// DetectGame returns all KCD2 candidates found by the current best-effort
+// Windows discovery strategies. Store identity is not part of compatibility;
+// callers may validate any compatible installation through ValidateGameRoot.
 func (s Service) DetectGame() (gamedetect.Result, error) {
 	return s.detect()
 }
