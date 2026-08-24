@@ -152,6 +152,8 @@ type nativeWindow struct {
 	secondaryCombo           uintptr
 	styledCheckbox           uintptr
 	tagsCheckbox             uintptr
+	outlineCheckbox          uintptr
+	shadowCheckbox           uintptr
 	primaryColorEdit         uintptr
 	primaryColorPickerButton uintptr
 	primarySizeEdit          uintptr
@@ -303,12 +305,26 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 	w.styledCheckbox = styled
 	w.setChecked(w.styledCheckbox, w.presentation.Styled)
 
-	tags, err := w.createControl("BUTTON", "Show language tags", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 270, 245, 190, 24, 0)
+	tags, err := w.createControl("BUTTON", "Language tags", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 270, 245, 130, 24, 0)
 	if err != nil {
 		return err
 	}
 	w.tagsCheckbox = tags
 	w.setChecked(w.tagsCheckbox, w.presentation.ShowLanguageTags)
+
+	outline, err := w.createControl("BUTTON", "Outline", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 410, 245, 100, 24, 0)
+	if err != nil {
+		return err
+	}
+	w.outlineCheckbox = outline
+	w.setChecked(w.outlineCheckbox, w.presentation.Outline)
+
+	shadow, err := w.createControl("BUTTON", "Shadow", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 520, 245, 100, 24, 0)
+	if err != nil {
+		return err
+	}
+	w.shadowCheckbox = shadow
+	w.setChecked(w.shadowCheckbox, w.presentation.Shadow)
 
 	if _, err := w.createControl("BUTTON", "Primary line", wsChild|wsVisible|bsGroupBox, 32, 278, 334, 170, 0); err != nil {
 		return err
@@ -623,6 +639,8 @@ func (w *nativeWindow) currentPresentationInput() presentationInput {
 		SecondaryColor:   w.text(w.colorEdit),
 		SecondarySize:    w.text(w.sizeEdit),
 		SecondaryItalic:  w.checked(w.italicCheckbox),
+		Outline:          w.checked(w.outlineCheckbox),
+		Shadow:           w.checked(w.shadowCheckbox),
 	}
 }
 
@@ -641,6 +659,8 @@ func (w *nativeWindow) setBusy(busy bool) {
 func (w *nativeWindow) updatePresentationControls() {
 	enabled := !w.busy && w.checked(w.styledCheckbox)
 	w.enable(w.tagsCheckbox, enabled)
+	w.enable(w.outlineCheckbox, enabled)
+	w.enable(w.shadowCheckbox, enabled)
 	w.enable(w.primaryColorEdit, enabled)
 	w.enable(w.primaryColorPickerButton, enabled)
 	w.enable(w.primarySizeEdit, enabled)
