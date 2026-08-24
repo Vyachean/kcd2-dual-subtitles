@@ -44,6 +44,13 @@ func DefaultHUDPresentationConfig() HUDPresentationConfig {
 	}
 }
 
+// NormalizeHUDPresentationConfig validates and normalizes an explicit HUD
+// presentation configuration without performing generation. UI callers use
+// this to fail before touching game localization or HUD assets.
+func NormalizeHUDPresentationConfig(config HUDPresentationConfig) (HUDPresentationConfig, error) {
+	return normalizeHUDPresentation(SubtitleStyleHUD, &config)
+}
+
 // ParseSubtitleStyle resolves a user-facing style name case-insensitively.
 func ParseSubtitleStyle(value string) (SubtitleStyle, bool) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
