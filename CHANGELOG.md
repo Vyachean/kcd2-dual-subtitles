@@ -2,6 +2,22 @@
 
 All notable stable-release changes are recorded here. Release candidates are development history and are not listed individually.
 
+## [v0.3.1] - 2026-08-24
+
+Platform-neutral compatibility correction for the v0.3 release line.
+
+### Fixed
+
+- Game-root validation no longer requires `English_xml.pak` and `Russian_xml.pak` specifically.
+- A compatible KCD2 installation is now identified by shared game Data PAKs plus at least two localization PAKs from the explicit supported-language registry.
+- Manual `Browse...` selection is explicitly store-neutral: Steam, GOG, Epic Games Store, Xbox / Microsoft Store and other Windows distributions use the same validation and generation path when their KCD2 file structure is compatible.
+- User-facing documentation no longer treats the Microsoft Store/Xbox build used for retail testing as the application's compatibility boundary.
+
+### Notes
+
+- Automatic game discovery remains best-effort and currently knows Microsoft GDK/Xbox install roots. Failure to auto-detect another launcher is not a compatibility failure; use `Browse...`.
+- The existing v0.3 retail acceptance evidence still comes from KCD2 1.5.6 on the Xbox / Microsoft Store PC build. Other storefront builds are supported structurally but have not all been separately retail-tested by this project.
+
 ## [v0.3.0] - 2026-08-24
 
 First stable release of the native Windows GUI and styled subtitle path.
@@ -39,8 +55,7 @@ First stable release of the native Windows GUI and styled subtitle path.
 - Secondary language/style is selected at generation time; there is no in-game runtime language switch yet.
 - Standalone narrative/cinematic captions using `fc_setNarrativeSubtitles` are outside the proven standard/bubble transformation and may remain unstyled or single-language.
 - Dialogue localization only; quests, items, tutorials, codex and general UI text are not bilingualized.
-- Xbox / Microsoft Store PC is the live-validated target; Steam/GOG/Epic autodetection and explicit validation are not included.
-- Release binaries are not Authenticode-signed.
+- The executable is not Authenticode-signed.
 - Presentation preview was deliberately deferred.
 
 ## [v0.1.0] - 2026-08-23
@@ -56,5 +71,6 @@ Initial stable localization-only release.
 - CLI generation and acceptance canary support.
 - Retail validation on KCD2 1.5.6 Xbox / Microsoft Store PC.
 
+[v0.3.1]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.1
 [v0.3.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.0
 [v0.1.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.1.0
