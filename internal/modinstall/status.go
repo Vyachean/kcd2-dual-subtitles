@@ -17,16 +17,6 @@ type Status struct {
 	Path      string
 }
 
-// Inspect keeps the historical Documents-root behavior for focused legacy
-// callers. New application code should use InspectForGameRoot.
-func Inspect() (Status, error) {
-	documents, err := documentsPath()
-	if err != nil {
-		return Status{}, err
-	}
-	return inspectInDocuments(documents)
-}
-
 // InspectForGameRoot resolves the same target used by automatic installation
 // for gameRoot, then inspects this tool's generated mod there.
 func InspectForGameRoot(gameRoot string) (Status, error) {
@@ -37,6 +27,7 @@ func InspectForGameRoot(gameRoot string) (Status, error) {
 	return inspectInModsRoot(location.ModsRoot)
 }
 
+// Documents-specific inspection remains only for focused GDK filesystem tests.
 func inspectInDocuments(documents string) (Status, error) {
 	if documents == "" {
 		return Status{}, errors.New("Documents path is empty")
