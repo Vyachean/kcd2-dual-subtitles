@@ -176,9 +176,9 @@ func Generate(request Request) (Result, error) {
 
 	var installPath string
 	if result.HUDOverride {
-		installPath, err = modinstall.InstallVersionedWithHUDForLanguages(targetLanguages, patchRows, derivedHUD, version)
+		installPath, err = modinstall.InstallVersionedWithHUDForLanguages(request.GameRoot, targetLanguages, patchRows, derivedHUD, version)
 	} else {
-		installPath, err = modinstall.InstallVersionedForLanguages(targetLanguages, patchRows, version)
+		installPath, err = modinstall.InstallVersionedForLanguages(request.GameRoot, targetLanguages, patchRows, version)
 	}
 	if err != nil {
 		return Result{}, fmt.Errorf("install generated mod: %w", err)
