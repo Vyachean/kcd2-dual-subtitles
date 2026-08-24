@@ -56,12 +56,7 @@ func installIntoDocumentsVersionedForLanguages(documents string, targetLanguages
 	if err != nil {
 		return "", fmt.Errorf("create staged mod directory in %q: %w", modsRoot, err)
 	}
-	stagingActive := true
-	defer func() {
-		if stagingActive {
-			_ = os.RemoveAll(staging)
-		}
-	}()
+	defer func() { _ = os.RemoveAll(staging) }()
 
 	if withHUD {
 		err = modarchive.WriteDirectoryVersionedWithHUDForLanguages(staging, targetLanguages, rows, hud, version)
@@ -84,7 +79,7 @@ func installIntoDocumentsVersionedForLanguages(documents string, targetLanguages
 		if !info.IsDir() {
 			return "", fmt.Errorf("refusing to replace non-directory at mod path %q", target)
 		}
-		if err := renamePath(target, backup); err != nil {
+		if err := renamePathWithRetry(target, backup); err != nil {
 			return "", fmt.Errorf("preserve previous mod directory %q: %w", target, err)
 		}
 		hadPrevious = true
@@ -93,18 +88,13 @@ func installIntoDocumentsVersionedForLanguages(documents string, targetLanguages
 		return "", fmt.Errorf("inspect existing mod path %q: %w", target, statErr)
 	}
 
-	if err := renamePath(staging, target); err != nil {
-		if hadPrevious {
-			if rollbackErr := renamePath(backup, target); rollbackErr != nil {
-				return "", errors.Join(
-					fmt.Errorf("publish staged mod to %q: %w", target, err),
-					fmt.Errorf("rollback previous mod from %q: %w", backup, rollbackErr),
-				)
-			}
+	if err := publishStagedDirectory(staging, target); err != nil {
+		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
+		if rollbackErr != nil {
+			return "", errors.Join(err, rollbackErr)
 		}
-		return "", fmt.Errorf("publish staged mod to %q: %w", target, err)
+		return "", err
 	}
-	stagingActive = false
 
 	if err := ensureModOrderContains(modsRoot, modarchive.ModID); err != nil {
 		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
