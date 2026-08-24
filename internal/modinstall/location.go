@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -13,7 +14,7 @@ import (
 type InstallLayout string
 
 const (
-	InstallLayoutGameRoot     InstallLayout = "game-root"
+	InstallLayoutGameRoot      InstallLayout = "game-root"
 	InstallLayoutGDKDocuments InstallLayout = "gdk-documents"
 )
 
@@ -26,11 +27,14 @@ type InstallLocation struct {
 
 var errEmptyGameRoot = errors.New("game root is empty")
 
-// ResolveInstallLocation selects the KCD2 mod root from the selected game
-// installation. Normal PC builds use <game-root>/Mods. Microsoft GDK packaged
-// builds are identified from package files present with the game content and
-// use the current user's Documents/kingdomcome_mods path.
+// ResolveInstallLocation selects the KCD2 mod root from the selected Windows
+// game installation. Normal PC builds use <game-root>/Mods. Microsoft GDK
+// packaged builds are identified from package files present with the game
+// content and use the current user's Documents/kingdomcome_mods path.
 func ResolveInstallLocation(gameRoot string) (InstallLocation, error) {
+	if runtime.GOOS != "windows" {
+		return InstallLocation{}, ErrAutomaticInstallUnsupported
+	}
 	return resolveInstallLocation(gameRoot, documentsPath)
 }
 
