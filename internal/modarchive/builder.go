@@ -24,6 +24,13 @@ const (
 	// extra fields that are known to cause CryPak compatibility problems.
 	deterministicDOSDate uint16 = 33
 	deterministicDOSTime uint16 = 0
+
+	// Retail KCD2 data PAKs accept stored ZIP entries whose headers identify
+	// themselves as Windows ZIP 1.0. Go's CreateRaw deliberately preserves zero
+	// version fields unless callers populate them, and retail CryPak rejects that
+	// shape for mod Data/*.pak even though the localization loader is more lenient.
+	kcd2StoredZIPVersion      uint16 = 10
+	kcd2WindowsCreatorVersion uint16 = 10 // platform byte 0 (Windows), spec byte 10.
 )
 
 var (
@@ -95,7 +102,20 @@ func modArchivePath(relativePath string) string {
 	return filepath.ToSlash(filepath.Join(ModID, relativePath))
 }
 
+// buildCryPak preserves the accepted localization PAK byte contract. Do not
+// silently broaden Data-PAK compatibility changes into this working path.
 func buildCryPak(entries []archiveEntry) ([]byte, error) {
+	return buildRawCryPak(entries, 0, 0)
+}
+
+// buildDataCryPak emits the ZIP header version fields used by working KCD2 data
+// PAK builders. This is intentionally separate from the accepted localization
+// PAK contract because retail evidence only showed Data/*.pak being rejected.
+func buildDataCryPak(entries []archiveEntry) ([]byte, error) {
+	return buildRawCryPak(entries, kcd2WindowsCreatorVersion, kcd2StoredZIPVersion)
+}
+
+func buildRawCryPak(entries []archiveEntry, creatorVersion, readerVersion uint16) ([]byte, error) {
 	var buffer bytes.Buffer
 	writer := zip.NewWriter(&buffer)
 
@@ -109,6 +129,8 @@ func buildCryPak(entries []archiveEntry) ([]byte, error) {
 			Name:               entry.name,
 			Method:             zip.Store,
 			Flags:              0,
+			CreatorVersion:     creatorVersion,
+			ReaderVersion:      readerVersion,
 			CRC32:              crc32.ChecksumIEEE(entry.data),
 			CompressedSize:     size,
 			UncompressedSize:   size,
