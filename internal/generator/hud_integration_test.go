@@ -80,13 +80,15 @@ func TestGenerateHUDPrototypeDerivesAndPackagesHUD(t *testing.T) {
 		t.Fatalf("patch rows = %#v, want only different row", rows)
 	}
 	for _, want := range []string{
-		"<p align='center'>[RU] Основной",
+		"[RU] Основной",
 		"<font color='" + subtitlepayload.SecondaryColor + "' size='24'><i>[EN] Secondary</i></font>",
-		"</p>",
 	} {
 		if !strings.Contains(rows[0].Text, want) {
 			t.Fatalf("HUD HTML row = %q, missing %q", rows[0].Text, want)
 		}
+	}
+	if strings.Contains(rows[0].Text, "<p") || strings.Contains(rows[0].Text, "align=") {
+		t.Fatalf("HUD HTML row unexpectedly forces paragraph alignment: %q", rows[0].Text)
 	}
 	if strings.Contains(rows[0].Text, subtitlepayload.Prefix) || strings.Contains(rows[0].Text, subtitlepayload.Suffix) {
 		t.Fatalf("HUD HTML row unexpectedly contains carrier sentinel: %q", rows[0].Text)
