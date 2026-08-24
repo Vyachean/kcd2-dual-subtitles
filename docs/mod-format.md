@@ -4,18 +4,19 @@ This document records the game-facing layout and compatibility rules used by the
 
 ## Principles
 
-- Never modify the original KCD2 installation.
+- Never modify original KCD2 files.
 - Generate only project-owned patch resources from files already installed by the user.
 - Never redistribute retail localization tables or a prebuilt proprietary `hud.gfx`.
 - Keep game-facing PAK/ZIP metadata deterministic and compatible with KCD2 CryPak.
 - Fail closed on unknown HUD structure or a foreign HUD override.
+- Treat the selected game installation as the source of truth for one resolved mod root; install, status, conflict checks, load order and uninstall must all use that same root.
 
 ## Input data
 
 For each selected source language, the generator reads:
 
 ```text
-<Content>\Localization\<language>_xml.pak
+<game-root>\Localization\<language>_xml.pak
 └── text_ui_dialog.xml
 ```
 
@@ -23,12 +24,37 @@ The supported language filename/tag registry is explicit in `internal/localizati
 
 The selected Main and Secondary languages are **text sources only**. They do not determine which single localization slot the generated mod targets.
 
-## Generated installation layout
+## Resolved installation root
 
-Automatic installation writes under the Windows Documents Known Folder:
+Automatic installation is Windows-only and resolves one `ModsRoot` from the normalized selected KCD2 root.
+
+For a normal PC layout:
 
 ```text
-<Documents>\kingdomcome_mods\kcd_dual_subtitles\
+<game-root>\Mods
+```
+
+For a Microsoft GDK packaged layout:
+
+```text
+<Documents>\kingdomcome_mods
+```
+
+GDK classification uses package artifacts in or adjacent to the selected game root (`gamelaunchhelper.exe`, `MicrosoftGame.config`, or `appxmanifest.xml`), not the spelling of its library path.
+
+All of these operations use the same resolved `ModsRoot`:
+
+- generated mod publication;
+- foreign-HUD scanning;
+- `mod_order.txt` integration;
+- installed/not-installed status;
+- Regenerate state;
+- Uninstall.
+
+The project-owned directory beneath either root is:
+
+```text
+<ModsRoot>\kcd_dual_subtitles\
 ├── mod.manifest
 ├── Localization\
 │   ├── <installed-supported-language-1>_xml.pak
@@ -207,7 +233,7 @@ Development builds use `dev`; release and release-candidate workflows inject the
 
 The installer does not create `mod_order.txt` when absent.
 
-If an existing file is present:
+If an existing file is present in the resolved `ModsRoot`:
 
 - an existing `kcd_dual_subtitles` entry is preserved;
 - if missing, exactly one project entry is appended;
@@ -215,19 +241,19 @@ If an existing file is present:
 - newline style is preserved where practical;
 - publication/load-order changes participate in staged rollback behavior.
 
-Uninstall removes only this project's matching entries.
+Uninstall removes only this project's matching entries from that same resolved root.
 
 ## Foreign HUD conflicts
 
-Because styled mode supplies `Libs/UI/hud.gfx`, the installer scans other installed mods for a foreign HUD supplied either as a loose file or inside a Data PAK.
+Because styled mode supplies `Libs/UI/hud.gfx`, the installer scans other installed mods in the resolved `ModsRoot` for a foreign HUD supplied either as a loose file or inside a Data PAK.
 
 If a foreign HUD is found, styled installation stops with an explicit conflict rather than silently changing load precedence or patching an unvalidated third-party binary.
 
-## Installation publication and OneDrive fallback
+## Publication and GDK/OneDrive fallback
 
-Normal installation is built in a staging directory under `kingdomcome_mods` and published by same-volume rename.
+The generated replacement is built in a staging directory **inside the resolved `ModsRoot`** and normally published by same-volume rename. This keeps replacement/rollback semantics identical for a standard game-root `Mods` directory and for the GDK Documents directory.
 
-Windows/OneDrive can transiently deny the final rename even when all writes succeeded. For retryable permission/sharing failures the installer:
+The Microsoft GDK path uses the Windows Known Folders API, so redirected/OneDrive Documents are supported. Windows/OneDrive can transiently deny the final rename even when all writes succeeded. For retryable permission/sharing failures the installer:
 
 1. performs bounded rename retries;
 2. if they remain unsuccessful, uses a guarded recursive copy into an absent target;
@@ -250,4 +276,6 @@ Unknown IDs are rejected. No retail row ID or proprietary dialogue content is co
 
 The localization patch filename/layout was established by v0.1 retail acceptance on KCD2 1.5.6 Xbox / Microsoft Store. The v0.3 HUD/Data PAK path was then developed through narrow RC proofs separating CryPak loading, HUD resource precedence, AVM1 execution and final TextField styling.
 
-For those experiments and their lessons, see [`v0.3-development-handoff.md`](v0.3-development-handoff.md).
+The GDK/Documents installation path is live-validated. The standard `<game-root>\Mods` target follows the normal KCD2 PC mod layout and is covered by automated resolver/install tests; additional storefront retail runs are evidence expansion, not separate generator architectures.
+
+For the RC experiments and their lessons, see [`v0.3-development-handoff.md`](v0.3-development-handoff.md).
