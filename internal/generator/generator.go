@@ -41,19 +41,23 @@ type Request struct {
 
 // Result describes a successfully generated mod destination.
 type Result struct {
-	OutputPath    string
-	InstallPath   string
-	Stats         localization.MergeStats
-	PatchRows     int
-	CanaryID      string
-	SubtitleStyle SubtitleStyle
-	HUDOverride   bool
+	OutputPath          string
+	InstallPath         string
+	Stats               localization.MergeStats
+	PatchRows           int
+	CanaryID            string
+	SubtitleStyle       SubtitleStyle
+	HUDOverride         bool
+	LocalizationTargets int
 }
 
 // Generate reads installed localization PAKs, merges their dialogue rows and
-// writes only changed rows as a KCD2 localization patch. The explicit HUD
-// prototype additionally derives a HUD override from the user's installed
-// IPL_GameData.pak. Base-game files are never modified.
+// writes only changed rows as a KCD2 localization patch. Selected languages are
+// text sources only; the resulting patch is published under every supported
+// localization PAK present in the selected installation so it remains active
+// regardless of the game's current language. The explicit HUD prototype also
+// derives a HUD override from the user's installed IPL_GameData.pak. Base-game
+// files are never modified.
 func Generate(request Request) (Result, error) {
 	mainInfo, secondaryInfo, err := validateRequest(request)
 	if err != nil {
@@ -71,6 +75,15 @@ func Generate(request Request) (Result, error) {
 	localizationDir := filepath.Join(request.GameRoot, "Localization")
 	if err := requireDirectory(localizationDir, "Localization directory"); err != nil {
 		return Result{}, err
+	}
+
+	installedLanguages, err := localization.InstalledLanguages(request.GameRoot)
+	if err != nil {
+		return Result{}, fmt.Errorf("discover installed localization languages: %w", err)
+	}
+	targetLanguages := make([]localization.Language, 0, len(installedLanguages))
+	for _, info := range installedLanguages {
+		targetLanguages = append(targetLanguages, info.Language)
 	}
 
 	mainPAK := filepath.Join(localizationDir, mainInfo.PakFilename)
@@ -116,10 +129,11 @@ func Generate(request Request) (Result, error) {
 	}
 
 	result := Result{
-		Stats:         stats,
-		PatchRows:     len(patchRows),
-		CanaryID:      strings.TrimSpace(request.CanaryID),
-		SubtitleStyle: style,
+		Stats:               stats,
+		PatchRows:           len(patchRows),
+		CanaryID:            strings.TrimSpace(request.CanaryID),
+		SubtitleStyle:       style,
+		LocalizationTargets: len(targetLanguages),
 	}
 
 	var derivedHUD []byte
@@ -140,10 +154,10 @@ func Generate(request Request) (Result, error) {
 
 	if request.OutputPath != "" {
 		if result.HUDOverride {
-			if err := modarchive.BuildVersionedWithHUD(request.OutputPath, request.MainLanguage, patchRows, derivedHUD, version); err != nil {
+			if err := modarchive.BuildVersionedWithHUDForLanguages(request.OutputPath, targetLanguages, patchRows, derivedHUD, version); err != nil {
 				return Result{}, fmt.Errorf("build HUD prototype mod archive: %w", err)
 			}
-		} else if err := modarchive.BuildVersioned(request.OutputPath, request.MainLanguage, patchRows, version); err != nil {
+		} else if err := modarchive.BuildVersionedForLanguages(request.OutputPath, targetLanguages, patchRows, version); err != nil {
 			return Result{}, fmt.Errorf("build mod archive: %w", err)
 		}
 		result.OutputPath = request.OutputPath
@@ -152,9 +166,9 @@ func Generate(request Request) (Result, error) {
 
 	var installPath string
 	if result.HUDOverride {
-		installPath, err = modinstall.InstallVersionedWithHUD(request.MainLanguage, patchRows, derivedHUD, version)
+		installPath, err = modinstall.InstallVersionedWithHUDForLanguages(targetLanguages, patchRows, derivedHUD, version)
 	} else {
-		installPath, err = modinstall.InstallVersioned(request.MainLanguage, patchRows, version)
+		installPath, err = modinstall.InstallVersionedForLanguages(targetLanguages, patchRows, version)
 	}
 	if err != nil {
 		return Result{}, fmt.Errorf("install generated mod: %w", err)

@@ -26,6 +26,7 @@ const (
 	esAutoHScroll   = 0x0080
 	cbsDropdownList = 0x0003
 	bsAutoCheckbox  = 0x0003
+	bsGroupBox      = 0x0007
 
 	wmCreate  = 0x0001
 	wmDestroy = 0x0002
@@ -228,10 +229,10 @@ func (w *nativeWindow) create() error {
 		uintptr(unsafe.Pointer(className)),
 		uintptr(unsafe.Pointer(title)),
 		wsCaption|wsSysMenu|wsMinimizeBox,
-		180,
-		80,
-		660,
-		590,
+		140,
+		70,
+		780,
+		640,
 		0,
 		0,
 		instance,
@@ -253,132 +254,145 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 	w.hwnd = hwnd
 	w.font, _, _ = procGetStockObject.Call(defaultGUIFont)
 
-	if _, err := w.createControl("STATIC", "Game folder", wsChild|wsVisible, 20, 20, 120, 22, 0); err != nil {
+	if _, err := w.createControl("BUTTON", "Game installation", wsChild|wsVisible|bsGroupBox, 16, 12, 728, 82, 0); err != nil {
 		return err
 	}
-	gameEdit, err := w.createControl("EDIT", w.model.GameRoot, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 20, 46, 490, 26, 0)
+	gameEdit, err := w.createControl("EDIT", w.model.GameRoot, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 32, 43, 568, 26, 0)
 	if err != nil {
 		return err
 	}
 	w.gameEdit = gameEdit
-	browse, err := w.createControl("BUTTON", "Browse...", wsChild|wsVisible|wsTabStop, 520, 45, 105, 28, idBrowseButton)
-	if err != nil {
+	if _, err := w.createControl("BUTTON", "Browse...", wsChild|wsVisible|wsTabStop, 612, 42, 112, 28, idBrowseButton); err != nil {
 		return err
 	}
-	_ = browse
 
-	if _, err := w.createControl("STATIC", "Main language", wsChild|wsVisible, 20, 98, 135, 22, 0); err != nil {
+	if _, err := w.createControl("BUTTON", "Subtitle languages", wsChild|wsVisible|bsGroupBox, 16, 104, 728, 104, 0); err != nil {
 		return err
 	}
-	mainCombo, err := w.createControl("COMBOBOX", "", wsChild|wsVisible|wsTabStop|wsVScroll|cbsDropdownList, 165, 94, 190, 200, 0)
+	if _, err := w.createControl("STATIC", "Main", wsChild|wsVisible, 32, 134, 90, 22, 0); err != nil {
+		return err
+	}
+	mainCombo, err := w.createControl("COMBOBOX", "", wsChild|wsVisible|wsTabStop|wsVScroll|cbsDropdownList, 132, 129, 200, 220, 0)
 	if err != nil {
 		return err
 	}
 	w.mainCombo = mainCombo
-
-	if _, err := w.createControl("STATIC", "Secondary language", wsChild|wsVisible, 20, 136, 135, 22, 0); err != nil {
+	if _, err := w.createControl("STATIC", "Secondary", wsChild|wsVisible, 370, 134, 120, 22, 0); err != nil {
 		return err
 	}
-	secondaryCombo, err := w.createControl("COMBOBOX", "", wsChild|wsVisible|wsTabStop|wsVScroll|cbsDropdownList, 165, 132, 190, 200, 0)
+	secondaryCombo, err := w.createControl("COMBOBOX", "", wsChild|wsVisible|wsTabStop|wsVScroll|cbsDropdownList, 500, 129, 210, 220, 0)
 	if err != nil {
 		return err
 	}
 	w.secondaryCombo = secondaryCombo
+	if _, err := w.createControl("STATIC", "These are subtitle text sources. The generated mod works with any installed in-game language.", wsChild|wsVisible, 32, 172, 680, 22, 0); err != nil {
+		return err
+	}
 
 	if err := w.refreshLanguageControls(w.model.GameRoot); err != nil {
 		return fmt.Errorf("discover installed languages: %w", err)
 	}
 
-	styled, err := w.createControl("BUTTON", "Styled subtitles", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 20, 176, 230, 24, idStyledCheckbox)
+	if _, err := w.createControl("BUTTON", "Appearance", wsChild|wsVisible|bsGroupBox, 16, 218, 728, 264, 0); err != nil {
+		return err
+	}
+	styled, err := w.createControl("BUTTON", "Customize subtitle appearance", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 32, 245, 220, 24, idStyledCheckbox)
 	if err != nil {
 		return err
 	}
 	w.styledCheckbox = styled
 	w.setChecked(w.styledCheckbox, w.presentation.Styled)
 
-	tags, err := w.createControl("BUTTON", "Show language tags", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 40, 208, 180, 24, 0)
+	tags, err := w.createControl("BUTTON", "Show language tags", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 270, 245, 190, 24, 0)
 	if err != nil {
 		return err
 	}
 	w.tagsCheckbox = tags
 	w.setChecked(w.tagsCheckbox, w.presentation.ShowLanguageTags)
 
-	if _, err := w.createControl("STATIC", "Primary color", wsChild|wsVisible, 40, 243, 115, 22, 0); err != nil {
+	if _, err := w.createControl("BUTTON", "Primary line", wsChild|wsVisible|bsGroupBox, 32, 278, 334, 170, 0); err != nil {
 		return err
 	}
-	primaryColorEdit, err := w.createControl("EDIT", w.presentation.PrimaryColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 165, 239, 110, 26, 0)
+	if _, err := w.createControl("STATIC", "Color", wsChild|wsVisible, 50, 310, 48, 22, 0); err != nil {
+		return err
+	}
+	primaryColorEdit, err := w.createControl("EDIT", w.presentation.PrimaryColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 105, 306, 105, 26, 0)
 	if err != nil {
 		return err
 	}
 	w.primaryColorEdit = primaryColorEdit
-	primaryColorPicker, err := w.createControl("BUTTON", "Choose...", wsChild|wsVisible|wsTabStop, 490, 239, 85, 26, idPrimaryColorPickerButton)
+	primaryColorPicker, err := w.createControl("BUTTON", "Color...", wsChild|wsVisible|wsTabStop, 220, 305, 90, 28, idPrimaryColorPickerButton)
 	if err != nil {
 		return err
 	}
 	w.primaryColorPickerButton = primaryColorPicker
-	if _, err := w.createControl("STATIC", "Primary size", wsChild|wsVisible, 300, 243, 100, 22, 0); err != nil {
+	if _, err := w.createControl("STATIC", "Size", wsChild|wsVisible, 50, 347, 48, 22, 0); err != nil {
 		return err
 	}
-	primarySizeEdit, err := w.createControl("EDIT", w.presentation.PrimarySize, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 410, 239, 70, 26, 0)
+	primarySizeEdit, err := w.createControl("EDIT", w.presentation.PrimarySize, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 105, 343, 70, 26, 0)
 	if err != nil {
 		return err
 	}
 	w.primarySizeEdit = primarySizeEdit
-	primaryItalic, err := w.createControl("BUTTON", "Italic primary line", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 40, 276, 180, 24, 0)
+	primaryItalic, err := w.createControl("BUTTON", "Italic", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 190, 343, 110, 24, 0)
 	if err != nil {
 		return err
 	}
 	w.primaryItalicCheckbox = primaryItalic
 	w.setChecked(w.primaryItalicCheckbox, w.presentation.PrimaryItalic)
-	if _, err := w.createControl("STATIC", "Leave primary color/size blank to use the game's default style.", wsChild|wsVisible, 235, 278, 355, 22, 0); err != nil {
+	if _, err := w.createControl("STATIC", "Leave color and size blank to keep the game's default primary style.", wsChild|wsVisible, 50, 382, 290, 44, 0); err != nil {
 		return err
 	}
 
-	if _, err := w.createControl("STATIC", "Secondary color", wsChild|wsVisible, 40, 313, 115, 22, 0); err != nil {
+	if _, err := w.createControl("BUTTON", "Secondary line", wsChild|wsVisible|bsGroupBox, 382, 278, 334, 170, 0); err != nil {
 		return err
 	}
-	colorEdit, err := w.createControl("EDIT", w.presentation.SecondaryColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 165, 309, 110, 26, 0)
+	if _, err := w.createControl("STATIC", "Color", wsChild|wsVisible, 400, 310, 48, 22, 0); err != nil {
+		return err
+	}
+	colorEdit, err := w.createControl("EDIT", w.presentation.SecondaryColor, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 455, 306, 105, 26, 0)
 	if err != nil {
 		return err
 	}
 	w.colorEdit = colorEdit
-	colorPicker, err := w.createControl("BUTTON", "Choose...", wsChild|wsVisible|wsTabStop, 490, 309, 85, 26, idColorPickerButton)
+	colorPicker, err := w.createControl("BUTTON", "Color...", wsChild|wsVisible|wsTabStop, 570, 305, 90, 28, idColorPickerButton)
 	if err != nil {
 		return err
 	}
 	w.colorPickerButton = colorPicker
-
-	if _, err := w.createControl("STATIC", "Secondary size", wsChild|wsVisible, 300, 313, 100, 22, 0); err != nil {
+	if _, err := w.createControl("STATIC", "Size", wsChild|wsVisible, 400, 347, 48, 22, 0); err != nil {
 		return err
 	}
-	sizeEdit, err := w.createControl("EDIT", w.presentation.SecondarySize, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 410, 309, 70, 26, 0)
+	sizeEdit, err := w.createControl("EDIT", w.presentation.SecondarySize, wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll, 455, 343, 70, 26, 0)
 	if err != nil {
 		return err
 	}
 	w.sizeEdit = sizeEdit
-
-	italic, err := w.createControl("BUTTON", "Italic secondary line", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 40, 346, 180, 24, 0)
+	italic, err := w.createControl("BUTTON", "Italic", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 540, 343, 110, 24, 0)
 	if err != nil {
 		return err
 	}
 	w.italicCheckbox = italic
 	w.setChecked(w.italicCheckbox, w.presentation.SecondaryItalic)
+	if _, err := w.createControl("STATIC", "The secondary line uses explicit presentation settings.", wsChild|wsVisible, 400, 382, 285, 44, 0); err != nil {
+		return err
+	}
 	w.updatePresentationControls()
 
-	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 20, 394, 190, 34, idGenerateButton)
+	generate, err := w.createControl("BUTTON", w.model.GenerateButtonLabel(), wsChild|wsVisible|wsTabStop, 16, 500, 210, 36, idGenerateButton)
 	if err != nil {
 		return err
 	}
 	w.generateButton = generate
 	w.enable(w.generateButton, len(w.languages) >= 2)
-	uninstall, err := w.createControl("BUTTON", "Uninstall", wsChild|wsVisible|wsTabStop, 225, 394, 120, 34, idUninstallButton)
+	uninstall, err := w.createControl("BUTTON", "Uninstall", wsChild|wsVisible|wsTabStop, 238, 500, 120, 36, idUninstallButton)
 	if err != nil {
 		return err
 	}
 	w.uninstallButton = uninstall
 	w.enable(w.uninstallButton, w.model.InstallationKnown && w.model.Installed)
 
-	status, err := w.createControl("STATIC", w.model.Status, wsChild|wsVisible, 20, 451, 605, 72, 0)
+	status, err := w.createControl("STATIC", w.model.Status, wsChild|wsVisible, 16, 552, 728, 48, 0)
 	if err != nil {
 		return err
 	}
@@ -490,7 +504,7 @@ func (w *nativeWindow) browse() {
 		w.setStatus(err.Error())
 		return
 	}
-	w.setStatus(fmt.Sprintf("Game folder selected. Found %d supported subtitle languages.", len(w.languages)))
+	w.setStatus(fmt.Sprintf("Game folder selected. Found %d supported subtitle languages; the generated pair will work with any of them.", len(w.languages)))
 }
 
 func (w *nativeWindow) generateAndInstall() {
@@ -554,7 +568,7 @@ func (w *nativeWindow) generateAndInstall() {
 	w.model.InstallPath = result.InstallPath
 	w.setText(w.generateButton, w.model.GenerateButtonLabel())
 	w.enable(w.uninstallButton, true)
-	w.setStatus(fmt.Sprintf("Installed successfully. Bilingual rows: %d; patch rows: %d.", result.Stats.Bilingual, result.PatchRows))
+	w.setStatus(fmt.Sprintf("Installed successfully. Bilingual rows: %d; patch rows: %d; active language slots: %d.", result.Stats.Bilingual, result.PatchRows, result.LocalizationTargets))
 }
 
 func (w *nativeWindow) uninstall() {
