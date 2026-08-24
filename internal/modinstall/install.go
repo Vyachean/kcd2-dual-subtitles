@@ -55,12 +55,7 @@ func installIntoDocumentsVersioned(documents string, mainLanguage localization.L
 	if err != nil {
 		return "", fmt.Errorf("create staged mod directory in %q: %w", modsRoot, err)
 	}
-	stagingActive := true
-	defer func() {
-		if stagingActive {
-			_ = os.RemoveAll(staging)
-		}
-	}()
+	defer func() { _ = os.RemoveAll(staging) }()
 
 	if err := modarchive.WriteDirectoryVersioned(staging, mainLanguage, rows, version); err != nil {
 		return "", fmt.Errorf("build staged mod directory: %w", err)
@@ -79,7 +74,7 @@ func installIntoDocumentsVersioned(documents string, mainLanguage localization.L
 		if !info.IsDir() {
 			return "", fmt.Errorf("refusing to replace non-directory at mod path %q", target)
 		}
-		if err := renamePath(target, backup); err != nil {
+		if err := renamePathWithRetry(target, backup); err != nil {
 			return "", fmt.Errorf("preserve previous mod directory %q: %w", target, err)
 		}
 		hadPrevious = true
@@ -89,18 +84,13 @@ func installIntoDocumentsVersioned(documents string, mainLanguage localization.L
 		return "", fmt.Errorf("inspect existing mod path %q: %w", target, statErr)
 	}
 
-	if err := renamePath(staging, target); err != nil {
-		if hadPrevious {
-			if rollbackErr := renamePath(backup, target); rollbackErr != nil {
-				return "", errors.Join(
-					fmt.Errorf("publish staged mod to %q: %w", target, err),
-					fmt.Errorf("rollback previous mod from %q: %w", backup, rollbackErr),
-				)
-			}
+	if err := publishStagedDirectory(staging, target); err != nil {
+		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
+		if rollbackErr != nil {
+			return "", errors.Join(err, rollbackErr)
 		}
-		return "", fmt.Errorf("publish staged mod to %q: %w", target, err)
+		return "", err
 	}
-	stagingActive = false
 
 	if err := ensureModOrderContains(modsRoot, modarchive.ModID); err != nil {
 		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
@@ -125,7 +115,7 @@ func rollbackInstalledMod(target, backup string, hadPrevious bool) error {
 		return fmt.Errorf("remove failed replacement at %q: %w", target, err)
 	}
 	if hadPrevious {
-		if err := renamePath(backup, target); err != nil {
+		if err := renamePathWithRetry(backup, target); err != nil {
 			return fmt.Errorf("restore previous mod from %q: %w", backup, err)
 		}
 	}
@@ -200,11 +190,11 @@ func ensureModOrderContains(modsRoot, modID string) error {
 		return fmt.Errorf("prepare load-order backup path: %w", err)
 	}
 
-	if err := renamePath(path, backupPath); err != nil {
+	if err := renamePathWithRetry(path, backupPath); err != nil {
 		return fmt.Errorf("preserve previous load order: %w", err)
 	}
-	if err := renamePath(temporaryPath, path); err != nil {
-		if rollbackErr := renamePath(backupPath, path); rollbackErr != nil {
+	if err := renamePathWithRetry(temporaryPath, path); err != nil {
+		if rollbackErr := renamePathWithRetry(backupPath, path); rollbackErr != nil {
 			return errors.Join(
 				fmt.Errorf("publish updated load order: %w", err),
 				fmt.Errorf("rollback previous load order: %w", rollbackErr),
