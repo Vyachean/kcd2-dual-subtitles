@@ -29,14 +29,14 @@ var (
 // accepted tagged format for backward compatibility. HUDPresentation is used
 // only with SubtitleStyleHUD; nil preserves the live-proven rc.10 defaults.
 type Request struct {
-	GameRoot           string
-	MainLanguage       localization.Language
-	SecondaryLanguage  localization.Language
-	SubtitleStyle      SubtitleStyle
-	HUDPresentation    *HUDPresentationConfig
-	OutputPath         string
-	Version            string
-	CanaryID           string
+	GameRoot          string
+	MainLanguage      localization.Language
+	SecondaryLanguage localization.Language
+	SubtitleStyle     SubtitleStyle
+	HUDPresentation   *HUDPresentationConfig
+	OutputPath        string
+	Version           string
+	CanaryID          string
 }
 
 // Result describes a successfully generated mod destination.
