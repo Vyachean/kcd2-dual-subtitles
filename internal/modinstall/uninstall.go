@@ -18,16 +18,6 @@ type UninstallResult struct {
 	UpdatedModOrder bool
 }
 
-// Uninstall keeps the historical Documents-root behavior for focused legacy
-// callers. New application code should use UninstallForGameRoot.
-func Uninstall() (UninstallResult, error) {
-	documents, err := documentsPath()
-	if err != nil {
-		return UninstallResult{}, err
-	}
-	return uninstallFromDocuments(documents)
-}
-
 // UninstallForGameRoot resolves the same target used by automatic installation
 // and removes only this tool's mod and load-order entry there.
 func UninstallForGameRoot(gameRoot string) (UninstallResult, error) {
@@ -38,6 +28,7 @@ func UninstallForGameRoot(gameRoot string) (UninstallResult, error) {
 	return uninstallFromModsRoot(location.ModsRoot)
 }
 
+// Documents-specific uninstall remains only for focused GDK filesystem tests.
 func uninstallFromDocuments(documents string) (UninstallResult, error) {
 	if documents == "" {
 		return UninstallResult{}, errors.New("Documents path is empty")
