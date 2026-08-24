@@ -15,13 +15,13 @@ type HUDReadabilityConfig struct {
 }
 
 const (
-	hudOutlineWidth          = 1
-	hudShadowAlpha           = 1
-	hudShadowNormalBlur      = 2
-	hudShadowAngle           = 45
-	hudShadowNormalDistance  = 1
-	hudShadowQuality         = 1
-	hudShadowNormalStrength  = 1
+	hudOutlineWidth         = 1
+	hudShadowAlpha          = 1
+	hudShadowNormalBlur     = 2
+	hudShadowAngle          = 45
+	hudShadowNormalDistance = 1
+	hudShadowQuality        = 1
+	hudShadowNormalStrength = 1
 )
 
 func appendTextFieldReadability(builder *actionBuilder, pushTextField func(), config HUDReadabilityConfig) {
