@@ -4,9 +4,15 @@ KCD2 Dual Subtitles is a small Windows tool that generates and installs bilingua
 
 It does not redistribute KCD2 localization or UI assets and does not modify the original game files.
 
-## Status
+## Compatibility
 
-The v0.3 feature set has been live-tested on **Kingdom Come: Deliverance II 1.5.6, Xbox / Microsoft Store PC**.
+The application is **store-neutral**. Compatibility is determined by the KCD2 game-file layout, not by whether the game came from Steam, GOG, Epic Games Store, Xbox / Microsoft Store, or another Windows distribution.
+
+A compatible installation must provide the normal KCD2 `Content` layout, the required shared Data PAKs, and at least two localization PAKs supported by the tool. The application does not require English, Russian, or any other specific language pair to be installed.
+
+Automatic discovery is only a convenience and is not the compatibility boundary. The current Windows autodetection strategy knows Microsoft GDK/Xbox roots; installations from other stores can be selected with `Browse...` and are validated by the same store-neutral structural rules.
+
+The v0.3 retail test cycle was performed on **Kingdom Come: Deliverance II 1.5.6, Xbox / Microsoft Store PC**. That is test evidence, not a store restriction. Other Windows storefront builds are supported when they expose the same compatible KCD2 file structure; they have not all been separately retail-tested by this project.
 
 Retail-tested behavior includes:
 
@@ -19,8 +25,6 @@ Retail-tested behavior includes:
 - native color selection;
 - safe regeneration and installation through the Windows Documents folder.
 
-Steam, GOG and Epic are not currently auto-detected or claimed as live-validated targets. Manual game-folder selection may still be used where the same KCD2 file layout is available.
-
 ## Windows GUI
 
 Run or double-click:
@@ -31,8 +35,8 @@ kcd2-dual-subtitles.exe
 
 The native Win32 application provides:
 
-- Xbox / Microsoft Store KCD2 autodetection;
-- `Browse...` fallback for manual game-folder selection;
+- best-effort KCD2 autodetection;
+- `Browse...` selection for any compatible Windows installation;
 - Main and Secondary subtitle language selectors;
 - optional styled subtitle presentation;
 - primary color, size and italic controls;
@@ -85,6 +89,8 @@ The tool has explicit metadata for the current known KCD2 PC localization PAK se
 
 Unknown future localization PAK names are ignored rather than guessed.
 
+At least two supported installed languages are required because the generated result is bilingual. No particular two languages are mandatory.
+
 ## Game language is independent from the selected pair
 
 Main and Secondary are **subtitle text sources**, not the language slot that KCD2 must currently be using.
@@ -93,15 +99,15 @@ The generated localization patch is written under every supported localization P
 
 ## Game folder selection
 
-The Xbox / Microsoft Store detector searches fixed Windows drives, including the default `<drive>:\XboxGames` roots and best-effort custom roots described by `.GamingRoot`.
+Automatic Windows discovery is best-effort. Store/launcher detection coverage does not define which installations the application supports.
 
-Only plausible immediate game directories are inspected; the tool does not recursively crawl entire disks.
-
-`Browse...` accepts either the KCD2 `Content` directory or its immediate parent, for example:
+If the game is not found automatically, use `Browse...`. It accepts either the KCD2 `Content` directory or its immediate parent, for example:
 
 ```text
-...\Kingdom Come- Deliverance II\Content
+...\KingdomComeDeliverance2\Content
 ```
+
+The selected directory is accepted solely by its compatible KCD2 structure. There is no Steam/GOG/Epic/Xbox mode switch and no store-specific generation path.
 
 ## Generated mod
 
@@ -201,7 +207,8 @@ kcd2-dual-subtitles.exe --version
 - v0.3 uses a **generation-time fixed language pair**; there is no in-game secondary-language switch yet;
 - standalone narrative/cinematic captions routed through `fc_setNarrativeSubtitles` are not yet handled by the proven standard/bubble HUD transformations and may remain single-language or unstyled;
 - dialogue localization comes from `text_ui_dialog.xml`; items, quests, tutorials, codex and general UI text are outside the current scope;
-- Steam/GOG/Epic autodetection and live compatibility acceptance are not implemented;
+- automatic discovery does not yet enumerate every possible launcher/library location, so `Browse...` may be required;
+- not every Windows storefront build has been separately retail-tested even though compatibility is store-neutral;
 - the executable is not Authenticode-signed;
 - there is no application self-update or persisted presentation profile.
 
