@@ -148,11 +148,7 @@ func Generate(request Request) (Result, error) {
 			if colorErr != nil {
 				return Result{}, fmt.Errorf("resolve shadow color: %w", colorErr)
 			}
-			derivedHUD, err = patchRetailHUDReadability(retailHUD, gfxpatch.HUDReadabilityConfig{
-				Outline:     presentation.Outline,
-				Shadow:      presentation.Shadow,
-				ShadowColor: shadowColor,
-			})
+			derivedHUD, err = patchRetailHUDReadability(retailHUD, readabilityConfig(presentation, shadowColor))
 		} else {
 			// Preserve the already retail-proven patch path byte-for-byte when
 			// neither experimental readability effect is enabled.
