@@ -21,22 +21,9 @@ var ErrAutomaticInstallUnsupported = errors.New("automatic installation is suppo
 
 var renamePath = os.Rename
 
-// Install writes a development-version generated mod into the current Windows
-// user's KCD2 mod directory.
-func Install(mainLanguage localization.Language, rows []localization.DialogueRow) (string, error) {
-	return InstallVersioned(mainLanguage, rows, "dev")
-}
-
-// InstallVersioned writes the generated mod into the current Windows user's
-// KCD2 mod directory and returns the installed mod directory.
-func InstallVersioned(mainLanguage localization.Language, rows []localization.DialogueRow, version string) (string, error) {
-	documents, err := documentsPath()
-	if err != nil {
-		return "", err
-	}
-	return installIntoDocumentsVersioned(documents, mainLanguage, rows, version)
-}
-
+// Documents-specific single-language helpers remain only for focused legacy
+// filesystem tests. Product code must enter through the layout-aware
+// multi-language installer in multi_target.go.
 func installIntoDocuments(documents string, mainLanguage localization.Language, rows []localization.DialogueRow) (string, error) {
 	return installIntoDocumentsVersioned(documents, mainLanguage, rows, "dev")
 }
