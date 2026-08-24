@@ -8,14 +8,19 @@ import (
 
 const directHTMLMarker = "KCD2DS_HUD_DIRECT_HTML_V1"
 
-// PatchHUDDirectHTML rewrites the existing retail fc_setSubtitles body with
-// the smallest post-vanilla HTML path possible. The original text argument is
-// saved before the retail body runs, then assigned directly to the standard
-// subtitle TextField htmlText property after vanilla sizing/layout work.
-//
-// This acceptance path deliberately performs no carrier parsing. The
-// localization generator supplies the complete two-line HTML string.
+// PatchHUDDirectHTML rewrites the retail subtitle function using the accepted
+// direct-HTML path without changing TextField readability properties.
 func PatchHUDDirectHTML(input []byte) ([]byte, error) {
+	return PatchHUDDirectHTMLWithReadability(input, HUDReadabilityConfig{})
+}
+
+// PatchHUDDirectHTMLWithReadability rewrites the existing retail
+// fc_setSubtitles body with the smallest post-vanilla HTML path possible. The
+// original text argument is saved before the retail body runs, then assigned
+// directly to the standard subtitle TextField htmlText property after vanilla
+// sizing/layout work. Optional readability effects are applied to the complete
+// TextField after the final htmlText assignment.
+func PatchHUDDirectHTMLWithReadability(input []byte, readability HUDReadabilityConfig) ([]byte, error) {
 	decoded, err := decodeContainer(input)
 	if err != nil {
 		return nil, err
@@ -62,7 +67,7 @@ func PatchHUDDirectHTML(input []byte) ([]byte, error) {
 	}
 
 	actions := decoded.body[target.payloadStart:target.payloadEnd]
-	rewritten, rewrittenCount, err := rewriteSubtitleDirectHTMLActions(actions)
+	rewritten, rewrittenCount, err := rewriteSubtitleDirectHTMLActions(actions, readability)
 	if err != nil {
 		return nil, fmt.Errorf("rewrite fc_setSubtitles direct HTML: %w", err)
 	}
@@ -86,8 +91,8 @@ func PatchHUDDirectHTML(input []byte) ([]byte, error) {
 	})
 }
 
-func rewriteSubtitleDirectHTMLActions(actions []byte) ([]byte, int, error) {
-	out := make([]byte, 0, len(actions)+192)
+func rewriteSubtitleDirectHTMLActions(actions []byte, readability HUDReadabilityConfig) ([]byte, int, error) {
+	out := make([]byte, 0, len(actions)+256)
 	matches := 0
 	pos := 0
 
@@ -177,7 +182,7 @@ func rewriteSubtitleDirectHTMLActions(actions []byte) ([]byte, int, error) {
 		if err != nil {
 			return nil, 0, err
 		}
-		postlude, err := buildDirectHTMLPostlude(savedRegister)
+		postlude, err := buildDirectHTMLPostlude(savedRegister, readability)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -240,10 +245,6 @@ func chooseDirectHTMLRegisters(info inlineFunction2Info, body []byte) (textRegis
 	return textRegister, savedRegister, nil
 }
 
-// validateDirectHTMLEarlyReturns allows the retail guard shape where an
-// ActionIf jumps exactly to the instruction after an early ActionReturn. The
-// direct-HTML postlude remains at function fallthrough, so guarded empty-text
-// exits stay vanilla while normal subtitle execution reaches the postlude.
 func validateDirectHTMLEarlyReturns(actions []byte) error {
 	bypassTargets := make(map[int]bool)
 	var returns []int
@@ -303,12 +304,14 @@ func buildDirectHTMLPrelude(textRegister, savedRegister byte) ([]byte, error) {
 	return builder.finish()
 }
 
-func buildDirectHTMLPostlude(savedRegister byte) ([]byte, error) {
+func buildDirectHTMLPostlude(savedRegister byte, readability HUDReadabilityConfig) ([]byte, error) {
 	builder := newActionBuilder()
 	builder.pushTextField()
 	builder.pushString("htmlText")
 	builder.pushRegister(savedRegister)
 	builder.simple(actionSetMember)
+
+	appendTextFieldReadability(builder, builder.pushTextField, readability)
 
 	for _, functionName := range []string{"updateSubtitlePosition", "setSubtitlesBackground"} {
 		builder.pushInt(0)
