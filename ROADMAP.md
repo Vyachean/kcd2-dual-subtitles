@@ -6,6 +6,8 @@ Build a small, dependency-light Windows tool that creates bilingual dialogue sub
 
 The first validated target is Russian + English on the Xbox / Microsoft Store PC build.
 
+For the detailed current v0.3 state, retail evidence, failed experiments, AVM1/CryPak lessons, and resume instructions, read [`docs/v0.3-development-handoff.md`](docs/v0.3-development-handoff.md) before starting a new implementation slice.
+
 ## Development rules
 
 1. Plan each implementation stage before changing production code.
@@ -15,7 +17,8 @@ The first validated target is Russian + English on the Xbox / Microsoft Store PC
 5. Prefer the Go standard library and keep dependencies minimal.
 6. Keep one Windows executable; CLI remains available even when a GUI frontend exists.
 7. Never modify the game's original localization files.
-8. Manual in-game/UI checks are reserved for behavior CI cannot prove.
+8. Never commit or redistribute proprietary game localization/GFX assets.
+9. Manual in-game/UI checks are reserved for behavior CI cannot prove.
 
 ## v0.1 — complete
 
@@ -53,20 +56,20 @@ Tracked by issue #36.
 
 Goal: normal Windows use should require no console commands while keeping the proven v0.1 generation/mod format unchanged.
 
-Implementation target:
+Implementation status:
 
-- [ ] Xbox / Microsoft Store KCD2 autodetection across fixed drives;
-- [ ] best-effort custom Xbox game-root discovery through `.GamingRoot`;
-- [ ] validated manual `Browse...` fallback;
-- [ ] application service above generator/installer internals;
-- [ ] safe generated-mod uninstall and `mod_order.txt` cleanup;
-- [ ] minimal native Win32 GUI with explicit main/secondary language selectors;
-- [ ] Generate and install / Regenerate state;
-- [ ] Uninstall state;
-- [ ] preserve all existing CLI commands and portable ZIP mode;
-- [ ] Windows no-argument launch opens GUI while explicit CLI commands keep normal console semantics;
-- [ ] full Linux/native-Windows CI plus CLI smoke tests on the release binary;
-- [ ] publish `v0.2.0-rc.1` through release-candidate CI;
+- [x] Xbox / Microsoft Store KCD2 autodetection across fixed drives;
+- [x] best-effort custom Xbox game-root discovery through `.GamingRoot`;
+- [x] validated manual `Browse...` fallback;
+- [x] application service above generator/installer internals;
+- [x] safe generated-mod uninstall and `mod_order.txt` cleanup;
+- [x] minimal native Win32 GUI with explicit main/secondary language selectors;
+- [x] Generate and install / Regenerate state;
+- [x] Uninstall state;
+- [x] preserve all existing CLI commands and portable ZIP mode;
+- [x] Windows no-argument launch opens GUI while explicit CLI commands keep normal console semantics;
+- [x] full Linux/native-Windows CI plus CLI/GUI smoke tests on the release binary;
+- [x] publish `v0.2.0-rc.1` through release-candidate CI;
 - [ ] manually exercise autodetection, Browse, generation/regeneration and uninstall on the validated Xbox environment;
 - [ ] publish stable `v0.2.0` only after that manual acceptance.
 
@@ -79,16 +82,43 @@ Explicitly out of scope for v0.2:
 - custom Scaleform subtitle UI;
 - Authenticode certificate acquisition.
 
+## v0.3 — styled subtitles and runtime secondary language
+
+Primary plan: issue #39. Detailed continuity notes: [`docs/v0.3-development-handoff.md`](docs/v0.3-development-handoff.md).
+
+### Retail-proven foundation
+
+- [x] deterministic derived HUD override from the user's installed `hud.gfx` without shipping proprietary GFX;
+- [x] CryPak-compatible generated Data PAK;
+- [x] standard bottom subtitle styling through post-vanilla `htmlText` restoration;
+- [x] overhead NPC bubble styling through its separate retail render path;
+- [x] secondary color, italic, and independent smaller size visibly render in KCD2 retail;
+- [x] forced `<p align='center'>` removed after it was proven to disturb dialogue-choice layout;
+- [x] `v0.3.0-rc.10` live check confirmed normal dialogue-choice alignment after removing forced centering.
+
+### Current active work
+
+- [ ] #55 Stage 2 — generator-owned presentation options: secondary color, size, italic, tags on/off;
+- [ ] #55 Stage 3 — expose the same presentation configuration in the native Windows GUI, with no duplicate formatting implementation;
+- [ ] #54 — support the separate narrative/cinematic subtitle path (`fc_setNarrativeSubtitles`), including the opening caption case such as `Несколько недель назад`;
+- [ ] #39 — live-prove project-owned namespaced localization lookup through retail `TextExtension.translateString`;
+- [ ] #39 — generate universal available-language data instead of one fixed secondary pair;
+- [ ] #39 — runtime session state for secondary language/style, including Off and safe fallbacks;
+- [ ] #39 — in-game Menu.gfx settings page after runtime lookup/state is proven;
+- [ ] #39 — installer/updater integration for the universal runtime mod;
+- [ ] full retail acceptance and stable v0.3 release.
+
+Important architecture note: the current direct localization HTML is a successful retail proof/interim fixed-pair mode, but it is not the final runtime-language transport because the same localization rows are also consumed by dialogue-choice UI. Final runtime styling should be applied inside subtitle render paths.
+
 ## Later work
 
 Potential later features include:
 
-- custom Scaleform subtitle styling / separate visual treatment for the two languages;
 - additional bilingual UI categories such as quests, items, skills, tutorials, or encyclopedia;
-- additional languages;
 - broader Steam/GOG/Epic live validation;
 - Authenticode code signing;
-- third-party translation patch inputs.
+- third-party translation patch inputs;
+- retail-safe persistence if a dependency-free mechanism is demonstrated.
 
 ## Workflow for each stage
 
