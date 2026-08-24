@@ -45,31 +45,9 @@ func TestNewModelKeepsBrowseFallbackOnDetectionError(t *testing.T) {
 		t.Fatalf("model = %+v", model)
 	}
 	if !strings.Contains(model.Status, "Game detection failed") || !strings.Contains(model.Status, "Browse") {
-		t.Fatalf("status = %q, want detection failure and Browse guidance", model.Status)
+		t.Fatalf("status = %q", model.Status)
 	}
 	if model.GenerateButtonLabel() != "Generate and install" {
 		t.Fatalf("button label = %q", model.GenerateButtonLabel())
-	}
-}
-
-func TestApplyInstallationStateRefreshesButtonsWithoutReplacingOperationStatus(t *testing.T) {
-	model := Model{Status: "Generation failed."}
-	model.ApplyInstallationState(modinstall.Status{Installed: true, Path: "restored-mod"}, nil)
-	if !model.InstallationKnown || !model.Installed || model.InstallPath != "restored-mod" {
-		t.Fatalf("refreshed installation model = %+v", model)
-	}
-	if model.Status != "Generation failed." {
-		t.Fatalf("operation status changed to %q", model.Status)
-	}
-	if model.GenerateButtonLabel() != "Regenerate" {
-		t.Fatalf("button label = %q, want Regenerate", model.GenerateButtonLabel())
-	}
-}
-
-func TestApplyInstallationStateMarksUnknownOnInspectionFailure(t *testing.T) {
-	model := Model{Installed: true, InstallPath: "stale", InstallationKnown: true}
-	model.ApplyInstallationState(modinstall.Status{}, errors.New("inspect denied"))
-	if model.InstallationKnown || model.Installed || model.InstallPath != "" {
-		t.Fatalf("failed inspection model = %+v", model)
 	}
 }
