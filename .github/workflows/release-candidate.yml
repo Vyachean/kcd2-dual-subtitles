@@ -114,9 +114,6 @@ jobs:
             throw "Version mismatch: got '$reportedVersion', want '$expectedVersion'"
           }
 
-          $hash = (Get-FileHash dist/kcd2-dual-subtitles.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  kcd2-dual-subtitles.exe" | Set-Content -Path dist/SHA256SUMS.txt -Encoding ascii -NoNewline
-
       - name: Smoke-test native GUI entrypoint
         shell: pwsh
         run: |
@@ -145,12 +142,23 @@ jobs:
             }
           }
 
+      - name: Package release candidate
+        shell: pwsh
+        env:
+          RC_BRANCH: ${{ github.event.ref }}
+        run: |
+          if ($env:RC_BRANCH -notmatch '^release-candidate/(v\d+\.\d+\.\d+-rc\.\d+)$') {
+            throw "Invalid release-candidate branch: $env:RC_BRANCH"
+          }
+          .\scripts\package-release.ps1 -Version $Matches[1]
+
       - name: Upload release candidate assets
         uses: actions/upload-artifact@v4
         with:
           name: release-candidate-assets
           path: |
             dist/kcd2-dual-subtitles.exe
+            dist/kcd2-dual-subtitles-v*-windows-x64.zip
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
@@ -198,15 +206,18 @@ jobs:
           fi
 
           cat > release-notes.md <<EOF
-          Release candidate for Xbox Store acceptance testing.
+          Release candidate for retail acceptance testing.
 
           - Built and tested entirely by GitHub Actions, including native Windows tests and native GUI startup smoke testing.
           - Generated manifests carry the same RC version as the executable.
+          - The versioned Windows x64 ZIP is the complete user package and contains the executable, README, license and internal SHA-256 checksums.
+          - The standalone executable and top-level SHA256SUMS.txt are also published for verification and advanced use.
           - Source commit: $GITHUB_SHA
-          - This is a prerelease; v0.2 GUI/autodetection acceptance is not complete yet.
+          - This is a prerelease intended for acceptance testing before a stable release.
           EOF
 
           gh release create "$TAG" \
+            "dist/kcd2-dual-subtitles-$TAG-windows-x64.zip" \
             dist/kcd2-dual-subtitles.exe \
             dist/SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" \
