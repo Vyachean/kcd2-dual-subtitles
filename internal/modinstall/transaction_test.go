@@ -28,6 +28,11 @@ func TestRecoverInterruptedReplacementRestoresPreviousInstallationAndLoadOrder(t
 	if err := os.WriteFile(orderPath, originalOrder, 0o600); err != nil {
 		t.Fatalf("write original load order: %v", err)
 	}
+	originalOrderInfo, err := os.Stat(orderPath)
+	if err != nil {
+		t.Fatalf("inspect original load order: %v", err)
+	}
+	originalOrderMode := originalOrderInfo.Mode().Perm()
 
 	tx, err := beginInstallTransaction(modsRoot)
 	if err != nil {
@@ -65,8 +70,8 @@ func TestRecoverInterruptedReplacementRestoresPreviousInstallationAndLoadOrder(t
 		t.Fatalf("recovered load order = %q err=%v, want %q", gotOrder, err, originalOrder)
 	}
 	orderInfo, err := os.Stat(orderPath)
-	if err != nil || orderInfo.Mode().Perm() != 0o600 {
-		t.Fatalf("recovered load-order permissions = %v err=%v, want 0600", orderInfo, err)
+	if err != nil || orderInfo.Mode().Perm() != originalOrderMode {
+		t.Fatalf("recovered load-order mode = %v err=%v, want %v", orderInfo, err, originalOrderMode)
 	}
 	if _, err := os.Stat(tx.root); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("transaction survived recovery: %v", err)
