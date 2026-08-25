@@ -18,11 +18,13 @@ if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
     throw "Executable not found: $ExecutablePath"
 }
 
-foreach ($requiredFile in @("README.md", "LICENSE")) {
+foreach ($requiredFile in @("README.md", "LICENSE", "NEXUS_DESCRIPTION.bbcode.txt")) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
         throw "$requiredFile not found in repository root"
     }
 }
+
+& (Join-Path $PSScriptRoot "render-nexus-description.ps1") -Check
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
