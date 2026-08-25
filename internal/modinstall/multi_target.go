@@ -188,39 +188,6 @@ func rollbackInstallTransaction(tx *installTransaction, modsRoot, target string,
 	return errors.Join(modErr, orderErr)
 }
 
-// v0.3.2 and earlier created .kcd_dual_subtitles.staging-* directly inside
-// the scanned mod root. A leaked directory has the same manifest modid as the
-// published mod and can shadow it on the next game launch. The prefix is owned
-// exclusively by this installer, so remove those legacy orphans before doing
-// any conflict scan or publication.
-func cleanupLegacyToolTempDirs(modsRoot string) error {
-	entries, err := os.ReadDir(modsRoot)
-	if err != nil {
-		return fmt.Errorf("inspect KCD2 mod root %q for legacy staging directories: %w", modsRoot, err)
-	}
-	prefix := "." + modarchive.ModID + ".staging-"
-	for _, entry := range entries {
-		if !strings.HasPrefix(entry.Name(), prefix) {
-			continue
-		}
-		path := filepath.Join(modsRoot, entry.Name())
-		info, err := os.Lstat(path)
-		if err != nil {
-			return fmt.Errorf("inspect legacy staging path %q: %w", path, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("refusing to remove symlink at legacy staging path %q", path)
-		}
-		if !info.IsDir() {
-			return fmt.Errorf("refusing to remove non-directory legacy staging path %q", path)
-		}
-		if err := os.RemoveAll(path); err != nil {
-			return fmt.Errorf("remove orphaned legacy staging directory %q: %w", path, err)
-		}
-	}
-	return nil
-}
-
 func verifyPublishedGeneratedMod(target string, targetLanguages []localization.Language, rows []localization.DialogueRow, hud []byte, version string, withHUD bool) error {
 	if withHUD {
 		return modarchive.VerifyDirectoryVersionedWithHUDForLanguages(target, targetLanguages, rows, hud, version)
