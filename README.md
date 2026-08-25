@@ -10,7 +10,7 @@ The application is **store-neutral**. Compatibility is determined by the KCD2 ga
 
 A compatible selected game root contains the shared KCD2 Data PAKs and at least two localization PAKs supported by the tool. The application does not require English, Russian, or any other specific language pair to be installed.
 
-Automatic discovery is only a convenience and is not the compatibility boundary. The current Windows autodetection strategy knows Microsoft GDK/Xbox roots; installations from other stores can be selected with `Browse...` and are validated by the same store-neutral structural rules.
+Automatic discovery is only a convenience and is not the compatibility boundary. The current Windows autodetection strategy looks for Microsoft GDK/Xbox installations, Steam libraries, Epic Games Store installed-game manifests and GOG/Galaxy metadata/default library locations. Every candidate is still accepted only after the same store-neutral structural KCD2 validation. `Browse...` remains the authoritative fallback for compatible installations that launcher discovery does not find.
 
 The v0.3 retail test cycle was performed on **Kingdom Come: Deliverance II 1.5.6, Xbox / Microsoft Store PC**. That is test evidence, not a store restriction. Other Windows storefront builds are supported when they expose the compatible KCD2 file structure; they have not all been separately retail-tested by this project.
 
@@ -50,6 +50,8 @@ The native Win32 application provides:
 - operation status and native error messages.
 
 When no previous valid selection is available, the GUI prefers **English as Main** when installed and chooses the first other installed supported language as Secondary. It never silently selects the same language twice.
+
+Generate/Regenerate runs outside the Win32 UI thread. The window remains responsive during generation, while controls that could change the captured game/language/presentation selection stay disabled until the operation finishes. Closing during an active generation asks for confirmation.
 
 ### Styled subtitles
 
@@ -135,7 +137,7 @@ For Microsoft GDK/Xbox packaged installations:
 
 GDK handling is selected from package artifacts in or next to the selected installation (`gamelaunchhelper.exe`, `MicrosoftGame.config`, or `appxmanifest.xml`), not from an `XboxGames` path name. A custom library location therefore does not change the rule.
 
-The GDK Documents path is resolved through the real Windows **Documents Known Folder**, so redirected and OneDrive-backed Documents folders are supported. Publication remains staged and guarded; the existing bounded retry/copy fallback for cloud-backed filesystem failures remains available there.
+The GDK Documents path is resolved through the real Windows **Documents Known Folder**, so redirected and OneDrive-backed Documents folders are supported. Publication uses a same-volume transaction workspace beside the resolved mod root rather than a directory inside KCD2's scanned mod root; bounded rename retries and the guarded copy fallback remain available for cloud-backed filesystem failures.
 
 A styled installation has the following shape beneath the resolved `kcd_dual_subtitles` directory:
 
@@ -152,6 +154,8 @@ kcd_dual_subtitles\
 ```
 
 The generated localization PAKs contain only the project's patch resource and changed dialogue rows. The generated Data PAK contains a deterministic transformation of the user's installed retail HUD when styled mode is enabled.
+
+Before success is reported, the tool verifies generated portable ZIP contents, staged installation contents and the final published mod against the exact deterministic files requested for that generation. Styled mode requires the expected derived HUD Data PAK; localization-only mode rejects an unexpected HUD payload.
 
 The original KCD2 files are never overwritten.
 
@@ -185,7 +189,9 @@ The generator reads the currently installed localization and HUD assets each tim
 
 Regenerate status is checked against the currently selected installation's resolved mod root, so switching `Browse...` to another KCD2 installation does not reuse the status of a different copy of the game.
 
-Generation and replacement are staged. A failed build is not published as a successful new installation.
+Generation and replacement are transactional. Directory-shaped work is kept outside KCD2's scanned mod root, a previous installation is retained until the new one is committed, and an interrupted Generate/Regenerate is recovered on the next Generate/Regenerate or Uninstall. Legacy `.kcd_dual_subtitles.staging-*` residue produced by v0.3.2 and earlier is also recovered or cleaned before a new publication.
+
+After a successful Generate/Regenerate, **fully restart KCD2 before testing the new language/style selection**. A running game may still hold the previously loaded localization/HUD resources in memory.
 
 ## Uninstall
 
@@ -239,7 +245,7 @@ Automatic installation is Windows-only. Portable ZIP generation remains availabl
 - v0.3 uses a **generation-time fixed language pair**; there is no in-game secondary-language switch yet;
 - standalone narrative/cinematic captions routed through `fc_setNarrativeSubtitles` are not yet handled by the proven standard/bubble HUD transformations and may remain single-language or unstyled;
 - dialogue localization comes from `text_ui_dialog.xml`; items, quests, tutorials, codex and general UI text are outside the current scope;
-- automatic discovery does not yet enumerate every possible launcher/library location, so `Browse...` may be required;
+- automatic discovery is best-effort and can still miss unusual/custom launcher metadata or library layouts, so `Browse...` remains available;
 - not every Windows storefront build has been separately retail-tested even though compatibility and installation targeting are store-neutral;
 - the executable is not Authenticode-signed;
 - there is no application self-update or persisted presentation profile.
@@ -254,7 +260,9 @@ KCD2 writes `kcd.log` in the Windows Documents folder used by the game. A succes
 [Mod] Loading localization patch 'Localization\text_ui__kcd_dual_subtitles.xml'
 ```
 
-Useful failure indicators include CryPak errors such as `ReadFile returned 15`, XML parse failures, missing mod/localization load messages, or an explicit foreign-HUD conflict reported by the installer.
+If upgrading from v0.3.2 after an interrupted or apparently frozen Regenerate, fully close KCD2, run the current version and Regenerate once. The installer recognizes its legacy `.kcd_dual_subtitles.staging-*` transaction residue before publishing the replacement.
+
+Useful failure indicators include CryPak errors such as `ReadFile returned 15`, XML parse failures, missing mod/localization load messages, duplicate `kcd_dual_subtitles`-style mod directories, or an explicit foreign-HUD conflict reported by the installer.
 
 Do not upload or commit full proprietary KCD2 localization or GFX files when reporting an issue.
 
