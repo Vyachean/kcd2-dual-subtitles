@@ -102,7 +102,12 @@ func uninstallFromModsRoot(modsRoot string) (UninstallResult, error) {
 
 	var modBackup string
 	if targetErr == nil {
-		backupPath, err := reserveSiblingPath(modsRoot, "."+modarchive.ModID+".uninstall-backup-*")
+		// Directory-shaped work must never live under modsRoot: KCD2 scans every
+		// direct child directory there as a candidate mod. Keep the uninstall
+		// backup on the same volume but beside the scanned root, so an interrupted
+		// uninstall cannot leave another loadable copy of this mod behind.
+		backupParent := filepath.Dir(filepath.Clean(modsRoot))
+		backupPath, err := reserveSiblingPath(backupParent, ".kcd2-dual-subtitles-uninstall-*")
 		if err != nil {
 			return result, err
 		}
