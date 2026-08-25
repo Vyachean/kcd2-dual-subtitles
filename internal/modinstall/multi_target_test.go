@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
@@ -99,6 +100,67 @@ func TestInstallRemovesLegacyScannedStagingDirectory(t *testing.T) {
 		if strings.HasPrefix(entry.Name(), "."+modarchive.ModID+".staging-") {
 			t.Fatalf("tool staging directory remains visible to KCD2 scan: %q", entry.Name())
 		}
+	}
+}
+
+func TestInstallKeepsRecoverableTransactionWhenRollbackIsBlocked(t *testing.T) {
+	originalRename := renamePath
+	originalSleep := sleepRenameRetry
+	defer func() {
+		renamePath = originalRename
+		sleepRenameRetry = originalSleep
+	}()
+	sleepRenameRetry = func(time.Duration) {}
+
+	parent := t.TempDir()
+	modsRoot := filepath.Join(parent, ModsDirectoryName)
+	target := filepath.Join(modsRoot, modarchive.ModID)
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatalf("create previous install: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "previous.txt"), []byte("previous"), 0o644); err != nil {
+		t.Fatalf("write previous sentinel: %v", err)
+	}
+
+	var transactionRoot string
+	renamePath = func(oldPath, newPath string) error {
+		if filepath.Base(oldPath) == transactionStagedDirname && newPath == target {
+			transactionRoot = filepath.Dir(oldPath)
+			return errors.New("injected publication failure")
+		}
+		if filepath.Base(oldPath) == transactionPreviousName && newPath == target {
+			transactionRoot = filepath.Dir(oldPath)
+			return os.ErrPermission
+		}
+		return os.Rename(oldPath, newPath)
+	}
+
+	rows := []localization.DialogueRow{{ID: "line", Text: "replacement"}}
+	targets := []localization.Language{localization.English, localization.Czech}
+	_, err := installIntoModsRootVersionedForLanguages(modsRoot, targets, rows, nil, "v-test", false)
+	if err == nil || !strings.Contains(err.Error(), "injected publication failure") {
+		t.Fatalf("install error = %v, want publication failure", err)
+	}
+	if transactionRoot == "" {
+		t.Fatal("did not capture install transaction root")
+	}
+	if info, statErr := os.Stat(transactionRoot); statErr != nil || !info.IsDir() {
+		t.Fatalf("recoverable transaction was discarded: info=%v err=%v", info, statErr)
+	}
+	previous := filepath.Join(transactionRoot, transactionPreviousName)
+	if got, readErr := os.ReadFile(filepath.Join(previous, "previous.txt")); readErr != nil || string(got) != "previous" {
+		t.Fatalf("previous install was discarded: data=%q err=%v", got, readErr)
+	}
+
+	renamePath = originalRename
+	if err := recoverInstallTransactions(modsRoot); err != nil {
+		t.Fatalf("recoverInstallTransactions() error = %v", err)
+	}
+	if got, readErr := os.ReadFile(filepath.Join(target, "previous.txt")); readErr != nil || string(got) != "previous" {
+		t.Fatalf("recovery did not restore previous install: data=%q err=%v", got, readErr)
+	}
+	if _, statErr := os.Stat(transactionRoot); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("transaction survived successful recovery: %v", statErr)
 	}
 }
 
