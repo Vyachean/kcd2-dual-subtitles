@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -34,8 +33,7 @@ func TestPublishedArtifactVerificationRollsBackCorruptReplacement(t *testing.T) 
 	}
 
 	renamePath = func(oldPath, newPath string) error {
-		base := filepath.Base(oldPath)
-		if strings.Contains(base, ".staging-") && !strings.HasSuffix(base, ".previous") {
+		if newPath == target && isTransactionStagedSource(oldPath) {
 			return os.ErrPermission
 		}
 		return os.Rename(oldPath, newPath)
@@ -59,4 +57,5 @@ func TestPublishedArtifactVerificationRollsBackCorruptReplacement(t *testing.T) 
 	if _, statErr := os.Stat(filepath.Join(target, "Data", modarchive.DataPAKFilename)); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("corrupt replacement survived rollback: %v", statErr)
 	}
+	assertNoInstallResidue(t, modsRoot)
 }
