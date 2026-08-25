@@ -108,7 +108,9 @@ Release and release-candidate binaries are built by GitHub Actions and published
 
 ---
 
-The section between `nexus-description:start` and `nexus-description:end` is intentionally self-contained so it can also be copied to the Nexus Mods description. Detailed implementation, diagnostics and maintainer notes follow below.
+The section between `nexus-description:start` and `nexus-description:end` is the canonical public description source. Nexus Mods uses BBCode rather than GitHub-flavored Markdown, so [`NEXUS_DESCRIPTION.bbcode.txt`](NEXUS_DESCRIPTION.bbcode.txt) is generated from that block by [`scripts/render-nexus-description.ps1`](scripts/render-nexus-description.ps1) and is the copy/paste source for the Nexus description. Packaging CI fails if that generated file is stale.
+
+Detailed implementation, diagnostics and maintainer notes follow below.
 
 ## Technical details
 
@@ -298,7 +300,7 @@ SHA256SUMS.txt
 
 The checksum file inside the archive verifies the executable, README and license included in that archive. GitHub releases also publish a top-level `SHA256SUMS.txt` that verifies the standalone executable and the versioned ZIP asset.
 
-CI creates the same package shape with the `dev` version and validates both the exact archive file set and the internal checksums before uploading the artifact.
+CI creates the same package shape with the `dev` version and validates both the exact archive file set and the internal checksums before uploading the artifact. The generated `NEXUS_DESCRIPTION.bbcode.txt` stays in the repository as maintainer-facing publication text and is intentionally not added to the user runtime package.
 
 ## Development
 
