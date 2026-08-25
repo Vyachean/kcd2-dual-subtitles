@@ -31,6 +31,7 @@ func acquireInstallLock(modsRoot string) (func(), error) {
 	release := func() {
 		_, _, _ = procUnlockFile.Call(file.Fd(), 0, 0, 1, 0)
 		_ = file.Close()
+		_ = os.Remove(lockPath)
 	}
 	return release, nil
 }
