@@ -2,6 +2,36 @@
 
 All notable stable-release changes are recorded here. Release candidates are development history and are not listed individually.
 
+## [v0.3.3] - 2026-08-25
+
+Crash-safe generation/install maintenance release, including broader Windows launcher autodetection already merged after v0.3.2.
+
+### Added
+
+- Best-effort automatic discovery now includes Steam libraries, Epic Games Store installed-game manifests and GOG/Galaxy metadata/default library locations in addition to the existing Microsoft GDK/Xbox discovery.
+- Every launcher-derived candidate still passes the same store-neutral structural KCD2 validation before it can be selected.
+- Generate/Regenerate/Uninstall mutations are serialized across application instances with a Windows file lock.
+- Generated portable ZIPs, staged installations and final published installations are verified against the exact deterministic files requested by the generator before success is reported.
+
+### Fixed
+
+- Generate/Regenerate no longer creates a directory-shaped staging copy inside KCD2's scanned mod root. Transaction workspaces now live beside the resolved mod root on the same volume.
+- Interrupted replacement is recoverable: the previous installation and `mod_order.txt` state are preserved until publication is committed, interrupted fresh publication removes its partial target, and committed publication keeps the verified new target.
+- Legacy `.kcd_dual_subtitles.staging-*` / `.previous` and interrupted legacy `mod_order.txt` residue from v0.3.2 and earlier are recovered or cleaned before a new publication.
+- The generated styled installation is byte-verified to contain the exact localization PAKs and exact derived HUD Data PAK; localization-only mode rejects an accidental HUD payload.
+- A corrupt guarded-copy publication now rolls back to the previous installation rather than being reported as successful.
+- The native GUI performs Generate/Regenerate off the Win32 UI thread, stays responsive during long generation, and confirms before closing an active operation.
+- Game-root/language/appearance controls, including `Browse...`, remain stable while background generation uses the captured selection.
+- Successful GUI status now identifies the installed mode/path and explicitly tells the user to restart KCD2 before testing the regenerated mod.
+- Uninstall recovers any interrupted generation transaction first and keeps its temporary directory backup outside the scanned mod root.
+
+### Notes
+
+- Retail `kcd.log` evidence identified the v0.3.2 failure source: a leaked `.kcd_dual_subtitles.staging-*` directory could be discovered as a duplicate mod and win localization/Data PAK loading over the canonical `kcd_dual_subtitles` directory.
+- The retail-proven direct-HTML Scaleform subtitle transformation is unchanged in this release; the correction is in publication, recovery and activation hygiene.
+- When upgrading from v0.3.2 after a failed/interrupted Regenerate, fully close KCD2, run v0.3.3 and Regenerate once before starting the game again.
+- Automatic installation remains Windows-only; portable ZIP generation is unchanged.
+
 ## [v0.3.2] - 2026-08-24
 
 Automatic-install target correction completing the store-neutral v0.3 compatibility contract.
@@ -91,6 +121,7 @@ Initial stable localization-only release.
 - CLI generation and acceptance canary support.
 - Retail validation on KCD2 1.5.6 Xbox / Microsoft Store PC.
 
+[v0.3.3]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.3
 [v0.3.2]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.2
 [v0.3.1]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.1
 [v0.3.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.0
