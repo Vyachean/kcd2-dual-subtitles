@@ -98,3 +98,22 @@ First stable release of the native Windows GUI and styled subtitle path.
 - Dialogue localization only; quests, items, tutorials, codex and general UI text are not bilingualized.
 - The executable is not Authenticode-signed.
 - Presentation preview was deliberately deferred.
+
+## [v0.1.0] - 2026-08-23
+
+Initial stable localization-only release.
+
+### Added
+
+- Deterministic English/Russian dialogue merge from installed KCD2 localization PAKs.
+- Patch-only localization PAK generation.
+- Portable ZIP and automatic Windows Documents installation.
+- Safe existing `mod_order.txt` integration.
+- CLI generation and acceptance canary support.
+- Retail validation on KCD2 1.5.6 Xbox / Microsoft Store PC.
+
+[v0.3.3]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.3
+[v0.3.2]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.2
+[v0.3.1]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.1
+[v0.3.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.0
+[v0.1.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.1.0
