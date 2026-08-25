@@ -17,6 +17,7 @@ const (
 
 var (
 	procPostMessageW  = guiUser32.NewProc("PostMessageW")
+	procGetDlgItem    = guiUser32.NewProc("GetDlgItem")
 	generationResults = make(chan generationOutcome, 1)
 )
 
@@ -30,7 +31,7 @@ func (w *nativeWindow) startGeneration(normalized string, main, secondary locali
 	if w.busy {
 		return
 	}
-	w.setBusy(true)
+	w.setGenerationBusy(true)
 	w.setStatus("Generating and installing bilingual subtitle patch... The window will remain responsive.")
 
 	service := w.service
@@ -50,7 +51,7 @@ func (w *nativeWindow) finishGeneration() {
 		return
 	}
 
-	w.setBusy(false)
+	w.setGenerationBusy(false)
 	if outcome.err != nil {
 		w.setStatus("Generation failed. No successful replacement was published.")
 		showMessage(w.hwnd, "Generation failed", outcome.err.Error(), mbOK|mbIconError)
@@ -69,6 +70,16 @@ func (w *nativeWindow) finishGeneration() {
 		mode = "styled HUD"
 	}
 	w.setStatus(fmt.Sprintf("Installed %s. Restart KCD2 before testing. %s", mode, outcome.result.InstallPath))
+}
+
+// setGenerationBusy keeps every game-selection control stable while the
+// background operation uses the captured game root. Browse is a sibling button
+// rather than one of nativeWindow's stored controls, so toggle it explicitly in
+// addition to the common busy-state controls.
+func (w *nativeWindow) setGenerationBusy(busy bool) {
+	w.setBusy(busy)
+	browseButton, _, _ := procGetDlgItem.Call(w.hwnd, idBrowseButton)
+	w.enable(browseButton, !busy)
 }
 
 func (w *nativeWindow) confirmCloseWhileBusy() bool {
