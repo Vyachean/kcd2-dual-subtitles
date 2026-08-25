@@ -106,6 +106,9 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 		if !info.IsDir() {
 			return "", fmt.Errorf("refusing to replace non-directory at mod path %q", target)
 		}
+		if err := tx.markHadPrevious(); err != nil {
+			return "", fmt.Errorf("record previous installation in transaction: %w", err)
+		}
 		if err := renamePathWithRetry(target, tx.previous); err != nil {
 			return "", fmt.Errorf("preserve previous mod directory %q: %w", target, err)
 		}
@@ -178,7 +181,12 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 		}
 		return "", commitErr
 	}
-	cleanupTransaction = true
+
+	// The committed marker is now the source of truth. Disable the generic defer
+	// and remove that marker last so termination during cleanup cannot make a
+	// committed replacement look like an interrupted publication.
+	cleanupTransaction = false
+	_ = cleanupCommittedInstallTransaction(tx.root)
 	return target, nil
 }
 
