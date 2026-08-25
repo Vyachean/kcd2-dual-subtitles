@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	installTransactionPrefix       = ".kcd2-dual-subtitles-install-"
-	transactionStateMarkerPrefix   = "state-"
-	transactionStagedDirname       = "staged"
-	transactionPreviousName        = "previous"
-	transactionModOrderNextName    = "mod_order.next"
+	installTransactionPrefix        = ".kcd2-dual-subtitles-install-"
+	transactionStateMarkerPrefix    = "state-"
+	transactionStagedDirname        = "staged"
+	transactionPreviousName         = "previous"
+	transactionModOrderNextName     = "mod_order.next"
 	transactionModOrderPreviousName = "mod_order.previous"
 
 	transactionStateBuilding   = "building"
@@ -55,9 +55,9 @@ func beginInstallTransaction(modsRoot string) (*installTransaction, error) {
 	return tx, nil
 }
 
-// setState records monotonic state markers instead of rewriting one state file.
-// A process termination during a transition can therefore never erase the last
-// durable state: committed wins over publishing, which wins over building.
+// setState publishes monotonic state markers atomically. A final marker only
+// becomes visible after its temporary file has been written, synced and closed,
+// so a process termination cannot leave a half-written higher-priority state.
 func (tx *installTransaction) setState(state string) error {
 	if tx == nil || tx.root == "" {
 		return errors.New("install transaction is not initialized")
@@ -68,27 +68,48 @@ func (tx *installTransaction) setState(state string) error {
 		return fmt.Errorf("unknown install transaction state %q", state)
 	}
 
-	path := filepath.Join(tx.root, transactionStateMarkerPrefix+state)
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if errors.Is(err, os.ErrExist) {
+	finalPath := filepath.Join(tx.root, transactionStateMarkerPrefix+state)
+	if info, err := os.Lstat(finalPath); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("invalid install transaction state marker %q", finalPath)
+		}
 		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect install transaction state marker %q: %w", finalPath, err)
 	}
+
+	pending, err := os.CreateTemp(tx.root, "."+transactionStateMarkerPrefix+state+"-pending-*")
 	if err != nil {
-		return fmt.Errorf("create install transaction state marker %q: %w", path, err)
+		return fmt.Errorf("create pending install transaction state marker: %w", err)
 	}
+	pendingPath := pending.Name()
 	closed := false
+	published := false
 	defer func() {
 		if !closed {
-			_ = file.Close()
+			_ = pending.Close()
+		}
+		if !published {
+			_ = os.Remove(pendingPath)
 		}
 	}()
-	if err := file.Sync(); err != nil {
-		return fmt.Errorf("sync install transaction state marker %q: %w", path, err)
+	if err := pending.Chmod(0o600); err != nil {
+		return fmt.Errorf("set pending install transaction state permissions: %w", err)
 	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("close install transaction state marker %q: %w", path, err)
+	if _, err := pending.WriteString(state + "\n"); err != nil {
+		return fmt.Errorf("write pending install transaction state: %w", err)
+	}
+	if err := pending.Sync(); err != nil {
+		return fmt.Errorf("sync pending install transaction state: %w", err)
+	}
+	if err := pending.Close(); err != nil {
+		return fmt.Errorf("close pending install transaction state: %w", err)
 	}
 	closed = true
+	if err := os.Rename(pendingPath, finalPath); err != nil {
+		return fmt.Errorf("publish install transaction state marker %q: %w", finalPath, err)
+	}
+	published = true
 	return nil
 }
 
