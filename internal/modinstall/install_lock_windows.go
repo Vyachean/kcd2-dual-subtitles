@@ -16,10 +16,10 @@ var (
 )
 
 func acquireInstallLock(modsRoot string) (func(), error) {
-	lockPath := filepath.Join(filepath.Dir(filepath.Clean(modsRoot)), ".kcd2-dual-subtitles-install.lock")
+	lockPath := filepath.Join(filepath.Dir(filepath.Clean(modsRoot)), ".kcd2-dual-subtitles-operation.lock")
 	file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("open install lock %q: %w", lockPath, err)
+		return nil, fmt.Errorf("open mod-operation lock %q: %w", lockPath, err)
 	}
 
 	locked, _, lockErr := procLockFile.Call(file.Fd(), 0, 0, 1, 0)
