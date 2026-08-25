@@ -71,17 +71,7 @@ func ensureModOrderContains(modsRoot, modID string) error {
 	if err != nil {
 		return fmt.Errorf("inspect %q: %w", path, err)
 	}
-	newline := []byte("\n")
-	if bytes.Contains(original, []byte("\r\n")) {
-		newline = []byte("\r\n")
-	}
-
-	updated := append([]byte(nil), original...)
-	if len(updated) > 0 && !bytes.HasSuffix(updated, []byte("\n")) && !bytes.HasSuffix(updated, []byte("\r")) {
-		updated = append(updated, newline...)
-	}
-	updated = append(updated, modID...)
-	updated = append(updated, newline...)
+	updated := modOrderWithEntry(original, modID)
 
 	temporary, err := os.CreateTemp(modsRoot, ".mod_order.txt.tmp-*")
 	if err != nil {
@@ -136,6 +126,21 @@ func ensureModOrderContains(modsRoot, modID string) error {
 	}
 	_ = os.Remove(backupPath)
 	return nil
+}
+
+func modOrderWithEntry(original []byte, modID string) []byte {
+	newline := []byte("\n")
+	if bytes.Contains(original, []byte("\r\n")) {
+		newline = []byte("\r\n")
+	}
+
+	updated := append([]byte(nil), original...)
+	if len(updated) > 0 && !bytes.HasSuffix(updated, []byte("\n")) && !bytes.HasSuffix(updated, []byte("\r")) {
+		updated = append(updated, newline...)
+	}
+	updated = append(updated, modID...)
+	updated = append(updated, newline...)
+	return updated
 }
 
 func modOrderContains(data []byte, modID string) bool {
