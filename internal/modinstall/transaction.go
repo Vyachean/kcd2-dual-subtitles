@@ -13,6 +13,7 @@ import (
 const (
 	installTransactionPrefix        = ".kcd2-dual-subtitles-install-"
 	transactionStateMarkerPrefix    = "state-"
+	transactionHadPreviousMarker    = "had-previous"
 	transactionStagedDirname        = "staged"
 	transactionPreviousName         = "previous"
 	transactionModOrderNextName     = "mod_order.next"
@@ -67,20 +68,33 @@ func (tx *installTransaction) setState(state string) error {
 	default:
 		return fmt.Errorf("unknown install transaction state %q", state)
 	}
+	return tx.publishMarker(transactionStateMarkerPrefix+state, state+"\n")
+}
 
-	finalPath := filepath.Join(tx.root, transactionStateMarkerPrefix+state)
+// markHadPrevious is persisted before the canonical installation is moved into
+// the transaction. If cleanup itself is interrupted after a successful rollback,
+// recovery can distinguish that restored target from an uncommitted fresh install.
+func (tx *installTransaction) markHadPrevious() error {
+	if tx == nil || tx.root == "" {
+		return errors.New("install transaction is not initialized")
+	}
+	return tx.publishMarker(transactionHadPreviousMarker, "previous\n")
+}
+
+func (tx *installTransaction) publishMarker(name, contents string) error {
+	finalPath := filepath.Join(tx.root, name)
 	if info, err := os.Lstat(finalPath); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return fmt.Errorf("invalid install transaction state marker %q", finalPath)
+			return fmt.Errorf("invalid install transaction marker %q", finalPath)
 		}
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("inspect install transaction state marker %q: %w", finalPath, err)
+		return fmt.Errorf("inspect install transaction marker %q: %w", finalPath, err)
 	}
 
-	pending, err := os.CreateTemp(tx.root, "."+transactionStateMarkerPrefix+state+"-pending-*")
+	pending, err := os.CreateTemp(tx.root, "."+name+"-pending-*")
 	if err != nil {
-		return fmt.Errorf("create pending install transaction state marker: %w", err)
+		return fmt.Errorf("create pending install transaction marker: %w", err)
 	}
 	pendingPath := pending.Name()
 	closed := false
@@ -94,20 +108,20 @@ func (tx *installTransaction) setState(state string) error {
 		}
 	}()
 	if err := pending.Chmod(0o600); err != nil {
-		return fmt.Errorf("set pending install transaction state permissions: %w", err)
+		return fmt.Errorf("set pending install transaction marker permissions: %w", err)
 	}
-	if _, err := pending.WriteString(state + "\n"); err != nil {
-		return fmt.Errorf("write pending install transaction state: %w", err)
+	if _, err := pending.WriteString(contents); err != nil {
+		return fmt.Errorf("write pending install transaction marker: %w", err)
 	}
 	if err := pending.Sync(); err != nil {
-		return fmt.Errorf("sync pending install transaction state: %w", err)
+		return fmt.Errorf("sync pending install transaction marker: %w", err)
 	}
 	if err := pending.Close(); err != nil {
-		return fmt.Errorf("close pending install transaction state: %w", err)
+		return fmt.Errorf("close pending install transaction marker: %w", err)
 	}
 	closed = true
 	if err := os.Rename(pendingPath, finalPath); err != nil {
-		return fmt.Errorf("publish install transaction state marker %q: %w", finalPath, err)
+		return fmt.Errorf("publish install transaction marker %q: %w", finalPath, err)
 	}
 	published = true
 	return nil
@@ -115,21 +129,31 @@ func (tx *installTransaction) setState(state string) error {
 
 func transactionState(root string) (string, error) {
 	for _, state := range []string{transactionStateCommitted, transactionStatePublishing, transactionStateBuilding} {
-		path := filepath.Join(root, transactionStateMarkerPrefix+state)
-		info, err := os.Lstat(path)
-		switch {
-		case err == nil:
-			if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-				return "", fmt.Errorf("invalid install transaction state marker %q", path)
-			}
+		exists, err := transactionMarkerExists(root, transactionStateMarkerPrefix+state)
+		if err != nil {
+			return "", err
+		}
+		if exists {
 			return state, nil
-		case errors.Is(err, os.ErrNotExist):
-			continue
-		default:
-			return "", fmt.Errorf("inspect install transaction state marker %q: %w", path, err)
 		}
 	}
 	return "", nil
+}
+
+func transactionMarkerExists(root, name string) (bool, error) {
+	path := filepath.Join(root, name)
+	info, err := os.Lstat(path)
+	switch {
+	case err == nil:
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return false, fmt.Errorf("invalid install transaction marker %q", path)
+		}
+		return true, nil
+	case errors.Is(err, os.ErrNotExist):
+		return false, nil
+	default:
+		return false, fmt.Errorf("inspect install transaction marker %q: %w", path, err)
+	}
 }
 
 // updateModOrderIfPresent makes the load-order change part of the same durable
@@ -273,12 +297,13 @@ func recoverInstallTransaction(modsRoot, root string) error {
 		return err
 	}
 	if state == transactionStateCommitted {
-		if err := os.RemoveAll(root); err != nil {
-			return fmt.Errorf("clean committed install transaction %q: %w", root, err)
-		}
-		return nil
+		return cleanupCommittedInstallTransaction(root)
 	}
 
+	hadPrevious, err := transactionMarkerExists(root, transactionHadPreviousMarker)
+	if err != nil {
+		return err
+	}
 	target := filepath.Join(modsRoot, modarchive.ModID)
 	previous := filepath.Join(root, transactionPreviousName)
 	previousInfo, previousErr := os.Lstat(previous)
@@ -296,7 +321,7 @@ func recoverInstallTransaction(modsRoot, root string) error {
 		} else if err := renamePathWithRetry(previous, target); err != nil {
 			modErr = fmt.Errorf("restore interrupted previous installation from %q: %w", previous, err)
 		}
-	} else if state == transactionStatePublishing {
+	} else if !hadPrevious && state == transactionStatePublishing {
 		// A fresh install can be interrupted while the guarded copy fallback is
 		// writing the final target. With no previous installation to restore,
 		// remove that uncommitted target rather than leaving a partial mod behind.
@@ -312,6 +337,36 @@ func recoverInstallTransaction(modsRoot, root string) error {
 
 	if err := os.RemoveAll(root); err != nil {
 		return fmt.Errorf("clean interrupted install transaction %q: %w", root, err)
+	}
+	return nil
+}
+
+// cleanupCommittedInstallTransaction removes the committed marker last. If the
+// process is terminated during cleanup, recovery either still sees committed or
+// finds a residue with no publishing state, so the published target is retained.
+func cleanupCommittedInstallTransaction(root string) error {
+	entries, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect committed install transaction %q: %w", root, err)
+	}
+	committedName := transactionStateMarkerPrefix + transactionStateCommitted
+	for _, entry := range entries {
+		if entry.Name() == committedName {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
+			return fmt.Errorf("clean committed install transaction entry %q: %w", entry.Name(), err)
+		}
+	}
+	committedPath := filepath.Join(root, committedName)
+	if err := os.Remove(committedPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove committed install transaction marker %q: %w", committedPath, err)
+	}
+	if err := os.Remove(root); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove committed install transaction %q: %w", root, err)
 	}
 	return nil
 }
