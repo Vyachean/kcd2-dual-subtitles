@@ -49,6 +49,19 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 	if err := os.MkdirAll(modsRoot, 0o755); err != nil {
 		return "", fmt.Errorf("create KCD2 mod directory %q: %w", modsRoot, err)
 	}
+
+	releaseLock, err := acquireInstallLock(modsRoot)
+	if err != nil {
+		return "", err
+	}
+	defer releaseLock()
+
+	// Repair any interrupted transaction before inspecting conflicts or building
+	// another replacement. Transaction workspaces live beside modsRoot and are
+	// therefore never visible to KCD2's direct-child mod scan.
+	if err := recoverInstallTransactions(modsRoot); err != nil {
+		return "", err
+	}
 	if err := cleanupLegacyToolTempDirs(modsRoot); err != nil {
 		return "", err
 	}
@@ -62,31 +75,22 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 		}
 	}
 
-	// KCD2 scans every direct child directory of the mod root as a candidate
-	// mod, including dot-prefixed directories. A staging directory inside
-	// modsRoot can therefore become an enabled duplicate of kcd_dual_subtitles
-	// if cleanup is delayed or fails (for example in OneDrive-backed Documents).
-	// Stage beside the scanned mod root instead. This remains on the same volume
-	// for the normal <game-root>/Mods and GDK <Documents>/kingdomcome_mods layouts,
-	// so the preferred rename publication path remains available.
-	stagingParent := filepath.Dir(filepath.Clean(modsRoot))
-	staging, err := os.MkdirTemp(stagingParent, "."+modarchive.ModID+".staging-*")
+	tx, err := beginInstallTransaction(modsRoot)
 	if err != nil {
-		return "", fmt.Errorf("create staged mod directory beside %q: %w", modsRoot, err)
+		return "", err
 	}
-	defer func() { _ = os.RemoveAll(staging) }()
+	defer func() { _ = os.RemoveAll(tx.root) }()
 
 	if withHUD {
-		err = modarchive.WriteDirectoryVersionedWithHUDForLanguages(staging, targetLanguages, rows, hud, version)
+		err = modarchive.WriteDirectoryVersionedWithHUDForLanguages(tx.staged, targetLanguages, rows, hud, version)
 	} else {
-		err = modarchive.WriteDirectoryVersionedForLanguages(staging, targetLanguages, rows, version)
+		err = modarchive.WriteDirectoryVersionedForLanguages(tx.staged, targetLanguages, rows, version)
 	}
 	if err != nil {
 		return "", fmt.Errorf("build staged mod directory: %w", err)
 	}
 
 	target := filepath.Join(modsRoot, modarchive.ModID)
-	backup := staging + ".previous"
 	hadPrevious := false
 	info, statErr := os.Lstat(target)
 	switch {
@@ -97,7 +101,7 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 		if !info.IsDir() {
 			return "", fmt.Errorf("refusing to replace non-directory at mod path %q", target)
 		}
-		if err := renamePathWithRetry(target, backup); err != nil {
+		if err := renamePathWithRetry(target, tx.previous); err != nil {
 			return "", fmt.Errorf("preserve previous mod directory %q: %w", target, err)
 		}
 		hadPrevious = true
@@ -106,8 +110,20 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 		return "", fmt.Errorf("inspect existing mod path %q: %w", target, statErr)
 	}
 
-	if err := publishStagedDirectory(staging, target); err != nil {
-		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
+	// This state is persisted before publication. If the process is killed while
+	// a guarded copy fallback is only partially written, the next run can
+	// distinguish that target from an untouched pre-existing installation and
+	// roll it back safely.
+	if err := tx.setState(transactionStatePublishing); err != nil {
+		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
+		if rollbackErr != nil {
+			return "", errors.Join(err, rollbackErr)
+		}
+		return "", err
+	}
+
+	if err := publishStagedDirectory(tx.staged, target); err != nil {
+		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
 		if rollbackErr != nil {
 			return "", errors.Join(err, rollbackErr)
 		}
@@ -115,7 +131,7 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 	}
 
 	if err := verifyPublishedGeneratedMod(target, targetLanguages, rows, hud, version, withHUD); err != nil {
-		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
+		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
 		verificationErr := fmt.Errorf("verify published generated mod: %w", err)
 		if rollbackErr != nil {
 			return "", errors.Join(verificationErr, rollbackErr)
@@ -124,14 +140,19 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 	}
 
 	if err := ensureModOrderContains(modsRoot, modarchive.ModID); err != nil {
-		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
+		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
 		if rollbackErr != nil {
 			return "", errors.Join(fmt.Errorf("update %s: %w", ModOrderFilename, err), rollbackErr)
 		}
 		return "", fmt.Errorf("update %s: %w", ModOrderFilename, err)
 	}
-	if hadPrevious {
-		_ = os.RemoveAll(backup)
+
+	if err := tx.setState(transactionStateCommitted); err != nil {
+		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
+		if rollbackErr != nil {
+			return "", errors.Join(fmt.Errorf("commit install transaction: %w", err), rollbackErr)
+		}
+		return "", fmt.Errorf("commit install transaction: %w", err)
 	}
 	return target, nil
 }
