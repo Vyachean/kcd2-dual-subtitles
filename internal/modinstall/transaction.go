@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
 )
 
 const (
-	installTransactionPrefix = ".kcd2ds-install-"
+	installTransactionPrefix = ".kcd2-dual-subtitles-install-"
 	transactionStateFilename = "state"
 	transactionStagedDirname = "staged"
 	transactionPreviousName  = "previous"
@@ -111,7 +113,7 @@ func recoverInstallTransaction(modsRoot, root string) error {
 		return fmt.Errorf("read install transaction state in %q: %w", root, stateErr)
 	}
 
-	target := filepath.Join(modsRoot, "kcd_dual_subtitles")
+	target := filepath.Join(modsRoot, modarchive.ModID)
 	previous := filepath.Join(root, transactionPreviousName)
 
 	if state == transactionStateCommitted {
