@@ -47,3 +47,38 @@ func TestRecoverKeepsTargetWhenPreviousWasAlreadyRestored(t *testing.T) {
 		t.Fatalf("transaction survived cleanup: %v", err)
 	}
 }
+
+func TestRecoverKeepsPublishedTargetFromMarkerlessCommittedCleanupResidue(t *testing.T) {
+	parent := t.TempDir()
+	modsRoot := filepath.Join(parent, ModsDirectoryName)
+	if err := os.MkdirAll(modsRoot, 0o755); err != nil {
+		t.Fatalf("create mods root: %v", err)
+	}
+	target := filepath.Join(modsRoot, modarchive.ModID)
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("create published target: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "sentinel.txt"), []byte("published"), 0o644); err != nil {
+		t.Fatalf("write published sentinel: %v", err)
+	}
+
+	// Safe committed cleanup removes every transaction entry before removing the
+	// committed marker. Termination after that final marker removal can leave an
+	// empty transaction directory, which must never be interpreted as evidence
+	// that the verified published target should be rolled back or deleted.
+	root, err := os.MkdirTemp(parent, installTransactionPrefix+"*")
+	if err != nil {
+		t.Fatalf("create markerless transaction residue: %v", err)
+	}
+
+	if err := recoverInstallTransactions(modsRoot); err != nil {
+		t.Fatalf("recoverInstallTransactions() error = %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(target, "sentinel.txt"))
+	if err != nil || string(got) != "published" {
+		t.Fatalf("published target changed: data=%q err=%v", got, err)
+	}
+	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("markerless transaction residue survived cleanup: %v", err)
+	}
+}
