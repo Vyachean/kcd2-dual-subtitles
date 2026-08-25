@@ -95,6 +95,11 @@ func TestLegacyRecoveryRestoresMissingLoadOrderAndRemovesTemporaryFile(t *testin
 	if err := os.WriteFile(previous, original, 0o600); err != nil {
 		t.Fatalf("write legacy previous load order: %v", err)
 	}
+	previousInfo, err := os.Stat(previous)
+	if err != nil {
+		t.Fatalf("inspect legacy previous load order: %v", err)
+	}
+	previousMode := previousInfo.Mode().Perm()
 	temporary := filepath.Join(modsRoot, legacyModOrderTempPrefix+"456")
 	if err := os.WriteFile(temporary, []byte("partial"), 0o644); err != nil {
 		t.Fatalf("write legacy temporary load order: %v", err)
@@ -109,8 +114,8 @@ func TestLegacyRecoveryRestoresMissingLoadOrderAndRemovesTemporaryFile(t *testin
 		t.Fatalf("restored load order = %q err=%v, want %q", got, err, original)
 	}
 	info, err := os.Stat(orderPath)
-	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("restored load-order permissions = %v err=%v, want 0600", info, err)
+	if err != nil || info.Mode().Perm() != previousMode {
+		t.Fatalf("restored load-order mode = %v err=%v, want %v", info, err, previousMode)
 	}
 	if _, err := os.Stat(temporary); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("legacy temporary load order survived: %v", err)
