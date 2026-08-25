@@ -50,15 +50,20 @@ func TestInstallStagesOutsideScannedModRoot(t *testing.T) {
 	if publishedFrom == "" {
 		t.Fatal("did not observe staged publication rename")
 	}
-	if filepath.Dir(publishedFrom) == filepath.Clean(modsRoot) {
+	if pathIsWithin(modsRoot, publishedFrom) {
 		t.Fatalf("staging directory %q is inside scanned mod root %q", publishedFrom, modsRoot)
 	}
-	if filepath.Dir(publishedFrom) != filepath.Dir(filepath.Clean(modsRoot)) {
-		t.Fatalf("staging parent = %q, want sibling parent %q", filepath.Dir(publishedFrom), filepath.Dir(filepath.Clean(modsRoot)))
+	transactionRoot := filepath.Dir(publishedFrom)
+	if filepath.Dir(transactionRoot) != filepath.Dir(filepath.Clean(modsRoot)) {
+		t.Fatalf("transaction parent = %q, want sibling parent %q", filepath.Dir(transactionRoot), filepath.Dir(filepath.Clean(modsRoot)))
 	}
-	if !strings.HasPrefix(filepath.Base(publishedFrom), "."+modarchive.ModID+".staging-") {
-		t.Fatalf("staging directory = %q, want tool-owned temp prefix", publishedFrom)
+	if !strings.HasPrefix(filepath.Base(transactionRoot), installTransactionPrefix) {
+		t.Fatalf("transaction directory = %q, want prefix %q", transactionRoot, installTransactionPrefix)
 	}
+	if filepath.Base(publishedFrom) != transactionStagedDirname {
+		t.Fatalf("published source = %q, want transaction staged directory", publishedFrom)
+	}
+	assertNoInstallTransactions(t, parent)
 }
 
 func TestInstallRemovesLegacyScannedStagingDirectory(t *testing.T) {
@@ -93,6 +98,27 @@ func TestInstallRemovesLegacyScannedStagingDirectory(t *testing.T) {
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "."+modarchive.ModID+".staging-") {
 			t.Fatalf("tool staging directory remains visible to KCD2 scan: %q", entry.Name())
+		}
+	}
+}
+
+func pathIsWithin(root, candidate string) bool {
+	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	if err != nil {
+		return false
+	}
+	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+func assertNoInstallTransactions(t *testing.T, parent string) {
+	t.Helper()
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatalf("read transaction parent: %v", err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), installTransactionPrefix) {
+			t.Fatalf("install transaction survived successful publication: %q", entry.Name())
 		}
 	}
 }
