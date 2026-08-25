@@ -52,7 +52,7 @@ Issue #36 is historical/superseded by the v0.3 stable release.
 
 ## v0.3 — stable fixed-pair styled subtitles
 
-Status: **stable**. `v0.3.0` established the feature set, `v0.3.1` removed store/language-specific game-root validation, and `v0.3.2` completes the store-neutral automatic-install contract.
+Status: **stable**. `v0.3.0` established the feature set, `v0.3.1` removed store/language-specific game-root validation, `v0.3.2` completed the store-neutral automatic-install contract, and `v0.3.3` hardens generation/publication recovery after a retail-observed leaked staging copy while also carrying the broader Steam/GOG/Epic autodetection merged after v0.3.2.
 
 The stable v0.3 contract is intentionally a **generation-time fixed pair**, not the larger runtime-language architecture originally explored in #39.
 
@@ -65,6 +65,7 @@ The stable v0.3 contract is intentionally a **generation-time fixed pair**, not 
 - [x] generated localization patches are emitted for every supported installed game-language slot, so the selected pair works independently of KCD2's current text language;
 - [x] game-root validation requires no specific language pair;
 - [x] store/launcher identity is not part of game-root validation or generation;
+- [x] best-effort Windows discovery includes Microsoft GDK/Xbox, Steam libraries, Epic manifests and GOG/Galaxy sources, with structural KCD2 validation remaining authoritative;
 - [x] preserve identical/missing/empty translation fallbacks;
 - [x] safe portable ZIP and automatic installation paths.
 
@@ -94,9 +95,16 @@ The stable v0.3 contract is intentionally a **generation-time fixed pair**, not 
 - [x] redirected/OneDrive Documents support remains available for GDK installations;
 - [x] bounded retry around Windows rename/sharing failures;
 - [x] guarded copy fallback for cloud-backed Documents when rename remains unavailable;
-- [x] staged replacement and rollback;
+- [x] no directory-shaped generation/install workspace is created inside KCD2's scanned mod root;
+- [x] same-volume sibling install transactions preserve previous mod and load-order state until commit;
+- [x] interrupted building/publishing and committed-cleanup states are recoverable on the next operation;
+- [x] legacy v0.3.2 `.kcd_dual_subtitles.staging-*` / `.previous` and interrupted `mod_order.txt` residue are recovered or cleaned before new publication;
+- [x] generated ZIP, staged directory and final installed directory are verified against the exact deterministic requested artifact before success;
+- [x] corrupt guarded-copy publication rolls back rather than being accepted;
+- [x] Windows Generate/Regenerate/Uninstall filesystem mutations are serialized across application instances;
+- [x] Generate/Regenerate runs outside the Win32 UI thread while game/language/presentation selection remains stable;
 - [x] safe existing `mod_order.txt` preservation;
-- [x] safe uninstall from the selected installation target;
+- [x] safe uninstall from the selected installation target, with its directory backup outside the scanned mod root;
 - [x] automatic installation remains Windows-only; portable ZIP behavior is unchanged elsewhere.
 
 ### Retail acceptance established during v0.3 RCs
@@ -108,7 +116,8 @@ The stable v0.3 contract is intentionally a **generation-time fixed pair**, not 
 - [x] presentation GUI works in the retail environment;
 - [x] language pair is independent of the game's active text language (for example Czech + German while KCD2 remains English);
 - [x] outline/shadow path accepted in the retail test cycle;
-- [x] Microsoft GDK/Documents installation path accepted in retail.
+- [x] Microsoft GDK/Documents installation path accepted in retail;
+- [x] retail `kcd.log` diagnosed the v0.3.2 stale-presentation failure as a leaked installer staging directory being discovered as a duplicate mod; v0.3.3 removes that publication pattern without changing the accepted direct-HTML HUD transform.
 
 Standard `<game-root>\Mods` targeting follows the official KCD2 mod layout and is covered by automated resolver/install tests; separate live storefront acceptance runs remain useful evidence but are not an architecture fork.
 
@@ -138,7 +147,7 @@ A live/approximate preview was deliberately deferred from v0.3.0. If implemented
 
 ### Other possible future work
 
-- broader automatic discovery of Steam/GOG/Epic/custom launcher library locations (manual Browse is already supported and remains authoritative);
+- additional launcher/library edge cases where best-effort autodetection does not yet find a structurally compatible installation; manual Browse remains authoritative;
 - separate retail acceptance runs on additional storefront builds;
 - additional bilingual categories such as quests, items, tutorials or codex;
 - persisted presentation profiles;
