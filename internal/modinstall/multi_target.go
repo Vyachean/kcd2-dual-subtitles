@@ -79,7 +79,12 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = os.RemoveAll(tx.root) }()
+	cleanupTransaction := true
+	defer func() {
+		if cleanupTransaction {
+			_ = os.RemoveAll(tx.root)
+		}
+	}()
 
 	if withHUD {
 		err = modarchive.WriteDirectoryVersionedWithHUDForLanguages(tx.staged, targetLanguages, rows, hud, version)
@@ -105,25 +110,33 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 			return "", fmt.Errorf("preserve previous mod directory %q: %w", target, err)
 		}
 		hadPrevious = true
+		// tx now owns the only previous installation. Do not delete it unless a
+		// rollback succeeds or the replacement reaches committed.
+		cleanupTransaction = false
 	case errors.Is(statErr, os.ErrNotExist):
 	default:
 		return "", fmt.Errorf("inspect existing mod path %q: %w", target, statErr)
 	}
 
-	// This state is persisted before publication. If the process is killed while
-	// a guarded copy fallback is only partially written, the next run can
-	// distinguish that target from an untouched pre-existing installation and
-	// roll it back safely.
+	// Persist publishing before the first write to the final target. A killed
+	// copy fallback can then be distinguished from an untouched installation.
 	if err := tx.setState(transactionStatePublishing); err != nil {
-		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
+		rollbackErr := rollbackInstallTransaction(tx, modsRoot, target, hadPrevious)
+		if rollbackErr == nil {
+			cleanupTransaction = true
+		}
 		if rollbackErr != nil {
 			return "", errors.Join(err, rollbackErr)
 		}
 		return "", err
 	}
+	cleanupTransaction = false
 
 	if err := publishStagedDirectory(tx.staged, target); err != nil {
-		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
+		rollbackErr := rollbackInstallTransaction(tx, modsRoot, target, hadPrevious)
+		if rollbackErr == nil {
+			cleanupTransaction = true
+		}
 		if rollbackErr != nil {
 			return "", errors.Join(err, rollbackErr)
 		}
@@ -131,30 +144,48 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 	}
 
 	if err := verifyPublishedGeneratedMod(target, targetLanguages, rows, hud, version, withHUD); err != nil {
-		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
 		verificationErr := fmt.Errorf("verify published generated mod: %w", err)
+		rollbackErr := rollbackInstallTransaction(tx, modsRoot, target, hadPrevious)
+		if rollbackErr == nil {
+			cleanupTransaction = true
+		}
 		if rollbackErr != nil {
 			return "", errors.Join(verificationErr, rollbackErr)
 		}
 		return "", verificationErr
 	}
 
-	if err := ensureModOrderContains(modsRoot, modarchive.ModID); err != nil {
-		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
-		if rollbackErr != nil {
-			return "", errors.Join(fmt.Errorf("update %s: %w", ModOrderFilename, err), rollbackErr)
+	if _, err := tx.updateModOrderIfPresent(modsRoot, modarchive.ModID); err != nil {
+		updateErr := fmt.Errorf("update %s: %w", ModOrderFilename, err)
+		rollbackErr := rollbackInstallTransaction(tx, modsRoot, target, hadPrevious)
+		if rollbackErr == nil {
+			cleanupTransaction = true
 		}
-		return "", fmt.Errorf("update %s: %w", ModOrderFilename, err)
+		if rollbackErr != nil {
+			return "", errors.Join(updateErr, rollbackErr)
+		}
+		return "", updateErr
 	}
 
 	if err := tx.setState(transactionStateCommitted); err != nil {
-		rollbackErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
-		if rollbackErr != nil {
-			return "", errors.Join(fmt.Errorf("commit install transaction: %w", err), rollbackErr)
+		commitErr := fmt.Errorf("commit install transaction: %w", err)
+		rollbackErr := rollbackInstallTransaction(tx, modsRoot, target, hadPrevious)
+		if rollbackErr == nil {
+			cleanupTransaction = true
 		}
-		return "", fmt.Errorf("commit install transaction: %w", err)
+		if rollbackErr != nil {
+			return "", errors.Join(commitErr, rollbackErr)
+		}
+		return "", commitErr
 	}
+	cleanupTransaction = true
 	return target, nil
+}
+
+func rollbackInstallTransaction(tx *installTransaction, modsRoot, target string, hadPrevious bool) error {
+	modErr := rollbackInstalledMod(target, tx.previous, hadPrevious)
+	orderErr := tx.restoreModOrder(modsRoot)
+	return errors.Join(modErr, orderErr)
 }
 
 // v0.3.2 and earlier created .kcd_dual_subtitles.staging-* directly inside
