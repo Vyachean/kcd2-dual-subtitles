@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
-	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
 )
 
 const (
