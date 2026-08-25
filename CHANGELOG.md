@@ -2,6 +2,27 @@
 
 All notable stable-release changes are recorded here. Release candidates are development history and are not listed individually.
 
+## [v0.3.3] - 2026-08-25
+
+Publication and distribution packaging for GitHub and mod-hosting releases.
+
+### Added
+
+- A versioned Windows x64 ZIP distribution containing `kcd2-dual-subtitles.exe`, `README.md`, `LICENSE` and an internal `SHA256SUMS.txt`.
+- A reusable PowerShell packaging script shared by CI, stable releases and release candidates.
+- CI validation of the final distributable archive contents.
+
+### Changed
+
+- The public portion of `README.md` is now self-contained and intentionally suitable for reuse on mod-hosting pages such as Nexus Mods, while detailed implementation and maintenance notes remain below it.
+- Stable releases and release candidates now publish the complete versioned ZIP as the recommended user download while retaining the standalone executable and top-level checksums for verification and advanced use.
+- Top-level release checksums now cover both the standalone executable and the versioned ZIP asset.
+
+### Notes
+
+- Runtime subtitle generation and installation behavior is unchanged from v0.3.2.
+- The release archive contains no proprietary Kingdom Come: Deliverance II assets.
+
 ## [v0.3.2] - 2026-08-24
 
 Automatic-install target correction completing the store-neutral v0.3 compatibility contract.
@@ -77,21 +98,3 @@ First stable release of the native Windows GUI and styled subtitle path.
 - Dialogue localization only; quests, items, tutorials, codex and general UI text are not bilingualized.
 - The executable is not Authenticode-signed.
 - Presentation preview was deliberately deferred.
-
-## [v0.1.0] - 2026-08-23
-
-Initial stable localization-only release.
-
-### Added
-
-- Deterministic English/Russian dialogue merge from installed KCD2 localization PAKs.
-- Patch-only localization PAK generation.
-- Portable ZIP and automatic Windows Documents installation.
-- Safe existing `mod_order.txt` integration.
-- CLI generation and acceptance canary support.
-- Retail validation on KCD2 1.5.6 Xbox / Microsoft Store PC.
-
-[v0.3.2]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.2
-[v0.3.1]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.1
-[v0.3.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.0
-[v0.1.0]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.1.0
