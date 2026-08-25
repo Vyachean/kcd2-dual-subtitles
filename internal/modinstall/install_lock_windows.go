@@ -31,7 +31,9 @@ func acquireInstallLock(modsRoot string) (func(), error) {
 	release := func() {
 		_, _, _ = procUnlockFile.Call(file.Fd(), 0, 0, 1, 0)
 		_ = file.Close()
-		_ = os.Remove(lockPath)
+		// Keep the named lock file in place. Removing it after unlock races with a
+		// new process that may already have opened and locked the same file; an
+		// unlink/recreate cycle could then create two independently locked files.
 	}
 	return release, nil
 }
