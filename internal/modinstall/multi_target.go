@@ -103,6 +103,15 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 		return "", err
 	}
 
+	if err := verifyPublishedGeneratedMod(target, targetLanguages, rows, hud, version, withHUD); err != nil {
+		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
+		verificationErr := fmt.Errorf("verify published generated mod: %w", err)
+		if rollbackErr != nil {
+			return "", errors.Join(verificationErr, rollbackErr)
+		}
+		return "", verificationErr
+	}
+
 	if err := ensureModOrderContains(modsRoot, modarchive.ModID); err != nil {
 		rollbackErr := rollbackInstalledMod(target, backup, hadPrevious)
 		if rollbackErr != nil {
@@ -114,4 +123,11 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 		_ = os.RemoveAll(backup)
 	}
 	return target, nil
+}
+
+func verifyPublishedGeneratedMod(target string, targetLanguages []localization.Language, rows []localization.DialogueRow, hud []byte, version string, withHUD bool) error {
+	if withHUD {
+		return modarchive.VerifyDirectoryVersionedWithHUDForLanguages(target, targetLanguages, rows, hud, version)
+	}
+	return modarchive.VerifyDirectoryVersionedForLanguages(target, targetLanguages, rows, version)
 }
