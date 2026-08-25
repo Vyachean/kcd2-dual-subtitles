@@ -57,7 +57,7 @@ func TestInstallFallsBackToCopyWhenStagingRenameStaysDenied(t *testing.T) {
 	}()
 	sleepRenameRetry = func(time.Duration) {}
 	renamePath = func(oldPath, newPath string) error {
-		if newPath == target && strings.Contains(filepath.Base(oldPath), ".staging-") && !strings.HasSuffix(oldPath, ".previous") {
+		if newPath == target && isTransactionStagedSource(oldPath) {
 			return os.ErrPermission
 		}
 		return os.Rename(oldPath, newPath)
@@ -109,7 +109,7 @@ func TestInstallCopyFallbackFailureRestoresPreviousMod(t *testing.T) {
 	}()
 	sleepRenameRetry = func(time.Duration) {}
 	renamePath = func(oldPath, newPath string) error {
-		if newPath == target && strings.Contains(filepath.Base(oldPath), ".staging-") && !strings.HasSuffix(oldPath, ".previous") {
+		if newPath == target && isTransactionStagedSource(oldPath) {
 			return os.ErrPermission
 		}
 		return os.Rename(oldPath, newPath)
@@ -135,6 +135,10 @@ func TestInstallCopyFallbackFailureRestoresPreviousMod(t *testing.T) {
 	assertNoInstallResidue(t, modsRoot)
 }
 
+func isTransactionStagedSource(path string) bool {
+	return filepath.Base(path) == transactionStagedDirname && strings.HasPrefix(filepath.Base(filepath.Dir(path)), installTransactionPrefix)
+}
+
 func assertNoInstallResidue(t *testing.T, modsRoot string) {
 	t.Helper()
 	entries, err := os.ReadDir(modsRoot)
@@ -143,7 +147,16 @@ func assertNoInstallResidue(t *testing.T, modsRoot string) {
 	}
 	for _, entry := range entries {
 		if strings.Contains(entry.Name(), ".staging-") || strings.HasSuffix(entry.Name(), ".previous") {
-			t.Fatalf("installer left staging/backup residue: %q", entry.Name())
+			t.Fatalf("installer left legacy staging/backup residue in mod root: %q", entry.Name())
+		}
+	}
+	parentEntries, err := os.ReadDir(filepath.Dir(filepath.Clean(modsRoot)))
+	if err != nil {
+		t.Fatalf("read transaction parent: %v", err)
+	}
+	for _, entry := range parentEntries {
+		if strings.HasPrefix(entry.Name(), installTransactionPrefix) {
+			t.Fatalf("installer left transaction residue: %q", entry.Name())
 		}
 	}
 }
