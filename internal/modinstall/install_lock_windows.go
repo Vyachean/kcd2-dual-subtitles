@@ -25,7 +25,7 @@ func acquireInstallLock(modsRoot string) (func(), error) {
 	locked, _, lockErr := procLockFile.Call(file.Fd(), 0, 0, 1, 0)
 	if locked == 0 {
 		_ = file.Close()
-		return nil, fmt.Errorf("%w: %v", ErrInstallInProgress, lockErr)
+		return nil, fmt.Errorf("%w: %v", ErrModOperationInProgress, lockErr)
 	}
 
 	release := func() {
