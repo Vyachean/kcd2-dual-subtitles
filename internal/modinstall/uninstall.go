@@ -41,6 +41,30 @@ func uninstallFromModsRoot(modsRoot string) (UninstallResult, error) {
 	if modsRoot == "" {
 		return UninstallResult{}, errors.New("KCD2 mod root is empty")
 	}
+
+	releaseLock, err := acquireInstallLock(modsRoot)
+	if err != nil {
+		return UninstallResult{}, err
+	}
+	defer releaseLock()
+
+	// Resolve an interrupted Generate/Regenerate transaction before uninstalling.
+	// Otherwise an old installation parked in the transaction workspace could be
+	// restored by a later run after the user had explicitly uninstalled the mod.
+	if err := recoverInstallTransactions(modsRoot); err != nil {
+		return UninstallResult{}, err
+	}
+	if rootInfo, err := os.Stat(modsRoot); err == nil {
+		if !rootInfo.IsDir() {
+			return UninstallResult{}, fmt.Errorf("KCD2 mod root is not a directory: %q", modsRoot)
+		}
+		if err := cleanupLegacyToolTempDirs(modsRoot); err != nil {
+			return UninstallResult{}, err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return UninstallResult{}, fmt.Errorf("inspect KCD2 mod root %q: %w", modsRoot, err)
+	}
+
 	target := filepath.Join(modsRoot, modarchive.ModID)
 	result := UninstallResult{Path: target}
 
@@ -102,7 +126,12 @@ func uninstallFromModsRoot(modsRoot string) (UninstallResult, error) {
 
 	var modBackup string
 	if targetErr == nil {
-		backupPath, err := reserveSiblingPath(modsRoot, "."+modarchive.ModID+".uninstall-backup-*")
+		// Directory-shaped work must never live under modsRoot: KCD2 scans every
+		// direct child directory there as a candidate mod. Keep the uninstall
+		// backup on the same volume but beside the scanned root, so an interrupted
+		// uninstall cannot leave another loadable copy of this mod behind.
+		backupParent := filepath.Dir(filepath.Clean(modsRoot))
+		backupPath, err := reserveSiblingPath(backupParent, ".kcd2-dual-subtitles-uninstall-*")
 		if err != nil {
 			return result, err
 		}

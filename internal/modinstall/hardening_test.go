@@ -46,7 +46,7 @@ func TestInstallRollsBackOwnModWhenLoadOrderPublishFails(t *testing.T) {
 	defer func() { renamePath = originalRename }()
 	injected := false
 	renamePath = func(oldPath, newPath string) error {
-		if !injected && strings.Contains(filepath.Base(oldPath), ".mod_order.txt.tmp-") && newPath == modOrderPath {
+		if !injected && filepath.Base(oldPath) == transactionModOrderNextName && newPath == modOrderPath {
 			injected = true
 			return errors.New("injected load-order publish failure")
 		}

@@ -62,6 +62,45 @@ func TestUninstallFromDocumentsRemovesOnlyOwnModAndOrderLines(t *testing.T) {
 	}
 }
 
+func TestUninstallStagesModOutsideScannedRoot(t *testing.T) {
+	documents := t.TempDir()
+	modsRoot := filepath.Join(documents, ModsDirectoryName)
+	ownMod := filepath.Join(modsRoot, modarchive.ModID)
+	if err := os.MkdirAll(ownMod, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	originalRename := renamePath
+	defer func() { renamePath = originalRename }()
+	var stagedAt string
+	renamePath = func(oldPath, newPath string) error {
+		if filepath.Clean(oldPath) == filepath.Clean(ownMod) {
+			stagedAt = newPath
+		}
+		return os.Rename(oldPath, newPath)
+	}
+
+	result, err := uninstallFromDocuments(documents)
+	if err != nil {
+		t.Fatalf("uninstallFromDocuments() error = %v", err)
+	}
+	if !result.RemovedMod {
+		t.Fatalf("result = %+v, want RemovedMod", result)
+	}
+	if stagedAt == "" {
+		t.Fatal("did not observe mod backup rename")
+	}
+	if pathIsWithin(modsRoot, stagedAt) {
+		t.Fatalf("uninstall backup %q is inside scanned mod root %q", stagedAt, modsRoot)
+	}
+	if filepath.Dir(filepath.Clean(stagedAt)) != filepath.Dir(filepath.Clean(modsRoot)) {
+		t.Fatalf("uninstall backup parent = %q, want %q", filepath.Dir(stagedAt), filepath.Dir(filepath.Clean(modsRoot)))
+	}
+	if !strings.HasPrefix(filepath.Base(stagedAt), ".kcd2-dual-subtitles-uninstall-") {
+		t.Fatalf("uninstall backup = %q, want tool-owned sibling prefix", stagedAt)
+	}
+}
+
 func TestUninstallFromDocumentsLeavesAbsentOrderAbsent(t *testing.T) {
 	documents := t.TempDir()
 	ownMod := filepath.Join(documents, ModsDirectoryName, modarchive.ModID)

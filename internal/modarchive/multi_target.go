@@ -32,6 +32,9 @@ func BuildVersionedForLanguages(outputPath string, targetLanguages []localizatio
 	if err != nil {
 		return err
 	}
+	if err := verifyArchiveBytes(archiveData, expectedVersionedFilesFromParts(infos, localizationPAK, nil, version)); err != nil {
+		return err
+	}
 	return publishArchive(outputPath, archiveData)
 }
 
@@ -60,6 +63,9 @@ func BuildVersionedWithHUDForLanguages(outputPath string, targetLanguages []loca
 	entries = append(entries, archiveEntry{name: modArchivePath(filepath.ToSlash(filepath.Join("Data", DataPAKFilename))), data: dataPAK})
 	archiveData, err := buildZip(entries, zip.Deflate)
 	if err != nil {
+		return err
+	}
+	if err := verifyArchiveBytes(archiveData, expectedVersionedFilesFromParts(infos, localizationPAK, dataPAK, version)); err != nil {
 		return err
 	}
 	return publishArchive(outputPath, archiveData)
@@ -120,7 +126,7 @@ func writeDirectoryVersionedForLanguages(directory string, targetLanguages []loc
 	}
 
 	if len(hud) == 0 {
-		return nil
+		return verifyDirectoryFiles(directory, expectedVersionedFilesFromParts(infos, localizationPAK, nil, version))
 	}
 	dataPAK, err := buildHUDPAK(hud)
 	if err != nil {
@@ -133,7 +139,7 @@ func writeDirectoryVersionedForLanguages(directory string, targetLanguages []loc
 	if err := os.WriteFile(filepath.Join(dataDir, DataPAKFilename), dataPAK, 0o644); err != nil {
 		return fmt.Errorf("write HUD data PAK: %w", err)
 	}
-	return nil
+	return verifyDirectoryFiles(directory, expectedVersionedFilesFromParts(infos, localizationPAK, dataPAK, version))
 }
 
 func targetLanguageInfos(targetLanguages []localization.Language) ([]localization.LanguageInfo, error) {
