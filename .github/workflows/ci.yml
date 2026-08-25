@@ -134,10 +134,17 @@ jobs:
             throw "--help did not produce CLI usage output"
           }
 
-      - name: Upload Windows executable
+      - name: Package Windows distribution
+        shell: pwsh
+        run: .\scripts\package-release.ps1 -Version "dev"
+
+      - name: Upload Windows distribution
         uses: actions/upload-artifact@v4
         with:
           name: kcd2-dual-subtitles-windows-amd64
-          path: dist/kcd2-dual-subtitles.exe
+          path: |
+            dist/kcd2-dual-subtitles.exe
+            dist/kcd2-dual-subtitles-dev-windows-x64.zip
+            dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
