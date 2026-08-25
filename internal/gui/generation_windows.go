@@ -64,15 +64,11 @@ func (w *nativeWindow) finishGeneration() {
 	w.setText(w.generateButton, w.model.GenerateButtonLabel())
 	w.enable(w.uninstallButton, true)
 
-	mode := "localization"
+	mode := "localization patch"
 	if outcome.result.HUDOverride {
 		mode = "styled HUD"
 	}
-	w.setStatus(fmt.Sprintf(
-		"Installed successfully (%s). Restart KCD2 before testing regenerated files. Path: %s",
-		mode,
-		outcome.result.InstallPath,
-	))
+	w.setStatus(fmt.Sprintf("Installed %s. Restart KCD2 before testing. %s", mode, outcome.result.InstallPath))
 }
 
 func (w *nativeWindow) confirmCloseWhileBusy() bool {
