@@ -16,7 +16,7 @@ var (
 )
 
 func acquireInstallLock(modsRoot string) (func(), error) {
-	lockPath := filepath.Join(filepath.Dir(filepath.Clean(modsRoot)), ".kcd2ds-install.lock")
+	lockPath := filepath.Join(filepath.Dir(filepath.Clean(modsRoot)), ".kcd2-dual-subtitles-install.lock")
 	file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open install lock %q: %w", lockPath, err)
