@@ -471,6 +471,13 @@ func windowProc(hwnd uintptr, message uint32, wParam, lParam uintptr) uintptr {
 		case wmCommand:
 			window.handleCommand(uint16(wParam & 0xffff))
 			return 0
+		case wmGenerationComplete:
+			window.finishGeneration()
+			return 0
+		case wmClose:
+			if window.busy && !window.confirmCloseWhileBusy() {
+				return 0
+			}
 		case wmDestroy:
 			procPostQuitMessage.Call(0)
 			return 0
@@ -568,23 +575,7 @@ func (w *nativeWindow) generateAndInstall() {
 	}
 
 	w.presentation = input
-	w.setBusy(true)
-	w.setStatus("Generating and installing bilingual subtitle patch...")
-	result, err := w.service.GenerateAndInstallWithPresentation(normalized, main, secondary, presentation)
-	w.setBusy(false)
-	if err != nil {
-		w.setStatus("Generation failed. No successful replacement was published.")
-		showMessage(w.hwnd, "Generation failed", err.Error(), mbOK|mbIconError)
-		return
-	}
-
-	w.model.GameRoot = normalized
-	w.model.Installed = true
-	w.model.InstallationKnown = true
-	w.model.InstallPath = result.InstallPath
-	w.setText(w.generateButton, w.model.GenerateButtonLabel())
-	w.enable(w.uninstallButton, true)
-	w.setStatus(fmt.Sprintf("Installed successfully. Bilingual rows: %d; patch rows: %d; active language slots: %d.", result.Stats.Bilingual, result.PatchRows, result.LocalizationTargets))
+	w.startGeneration(normalized, main, secondary, presentation)
 }
 
 func (w *nativeWindow) uninstall() {
