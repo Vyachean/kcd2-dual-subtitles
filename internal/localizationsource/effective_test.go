@@ -94,16 +94,16 @@ func TestResolveFromModsRootLaterModWins(t *testing.T) {
 
 func TestResolveFromModsRootModOrderIsWhitelistAndOverridesAlphabeticalOrder(t *testing.T) {
 	modsRoot := t.TempDir()
-	writeLocalizationMod(t, modsRoot, "a-folder", "mod-a", "A", "English_xml.pak", map[string]string{
+	writeLocalizationMod(t, modsRoot, "a-folder", "mod_a", "A", "English_xml.pak", map[string]string{
 		localization.DialogueXMLArchivePath: dialogueXML(localization.DialogueRow{ID: "a", Source: "a", Text: "A"}),
 	})
-	writeLocalizationMod(t, modsRoot, "z-folder", "mod-z", "Z", "English_xml.pak", map[string]string{
+	writeLocalizationMod(t, modsRoot, "z-folder", "mod_z", "Z", "English_xml.pak", map[string]string{
 		localization.DialogueXMLArchivePath: dialogueXML(localization.DialogueRow{ID: "a", Source: "z", Text: "Z"}),
 	})
 	writeLocalizationMod(t, modsRoot, "inactive", "inactive", "Inactive", "English_xml.pak", map[string]string{
 		localization.DialogueXMLArchivePath: dialogueXML(localization.DialogueRow{ID: "a", Source: "inactive", Text: "INACTIVE"}),
 	})
-	if err := os.WriteFile(filepath.Join(modsRoot, modinstall.ModOrderFilename), []byte("mod-z\nmod-a\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(modsRoot, modinstall.ModOrderFilename), []byte("mod_z\nmod_a\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -114,17 +114,17 @@ func TestResolveFromModsRootModOrderIsWhitelistAndOverridesAlphabeticalOrder(t *
 	if got := result.Rows[0].Text; got != "A" {
 		t.Fatalf("final text = %q, want A from explicit last mod", got)
 	}
-	if len(result.Contributions) != 2 || result.Contributions[0].ModID != "mod-z" || result.Contributions[1].ModID != "mod-a" {
+	if len(result.Contributions) != 2 || result.Contributions[0].ModID != "mod_z" || result.Contributions[1].ModID != "mod_a" {
 		t.Fatalf("Contributions = %+v", result.Contributions)
 	}
 }
 
 func TestResolveFromModsRootManifestIDCanDifferFromFolder(t *testing.T) {
 	modsRoot := t.TempDir()
-	writeLocalizationMod(t, modsRoot, "folder-name", "real-id", "Real", "English_xml.pak", map[string]string{
+	writeLocalizationMod(t, modsRoot, "folder-name", "real_id", "Real", "English_xml.pak", map[string]string{
 		localization.DialogueXMLArchivePath: dialogueXML(localization.DialogueRow{ID: "a", Source: "mod", Text: "fixed"}),
 	})
-	if err := os.WriteFile(filepath.Join(modsRoot, modinstall.ModOrderFilename), []byte("real-id\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(modsRoot, modinstall.ModOrderFilename), []byte("real_id\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -139,10 +139,10 @@ func TestResolveFromModsRootManifestIDCanDifferFromFolder(t *testing.T) {
 
 func TestResolveFromModsRootIgnoresOtherLanguagesAndNoDialogueResources(t *testing.T) {
 	modsRoot := t.TempDir()
-	writeLocalizationMod(t, modsRoot, "other-language", "other-language", "Other", "Russian_xml.pak", map[string]string{
+	writeLocalizationMod(t, modsRoot, "other-language", "other_language", "Other", "Russian_xml.pak", map[string]string{
 		localization.DialogueXMLArchivePath: dialogueXML(localization.DialogueRow{ID: "a", Source: "mod", Text: "wrong language"}),
 	})
-	writeLocalizationMod(t, modsRoot, "no-dialogue", "no-dialogue", "No dialogue", "English_xml.pak", map[string]string{
+	writeLocalizationMod(t, modsRoot, "no-dialogue", "no_dialogue", "No dialogue", "English_xml.pak", map[string]string{
 		"text_ui_items.xml": dialogueXML(localization.DialogueRow{ID: "a", Source: "mod", Text: "wrong table"}),
 	})
 	stock := []localization.DialogueRow{{ID: "a", Source: "stock", Text: "stock"}}
@@ -153,6 +153,22 @@ func TestResolveFromModsRootIgnoresOtherLanguagesAndNoDialogueResources(t *testi
 	}
 	if !reflect.DeepEqual(result.Rows, stock) || len(result.Contributions) != 0 {
 		t.Fatalf("result = %+v, want stock only", result)
+	}
+}
+
+func TestResolveFromModsRootIgnoresInvalidManifest(t *testing.T) {
+	modsRoot := t.TempDir()
+	writeLocalizationMod(t, modsRoot, "invalid", "invalid-id", "Invalid", "English_xml.pak", map[string]string{
+		localization.DialogueXMLArchivePath: dialogueXML(localization.DialogueRow{ID: "a", Source: "mod", Text: "must not load"}),
+	})
+	stock := []localization.DialogueRow{{ID: "a", Source: "stock", Text: "stock"}}
+
+	result, err := resolveFromModsRoot(stock, modsRoot, "English_xml.pak")
+	if err != nil {
+		t.Fatalf("resolveFromModsRoot() error = %v", err)
+	}
+	if !reflect.DeepEqual(result.Rows, stock) || len(result.Contributions) != 0 {
+		t.Fatalf("result = %+v, want invalid mod ignored", result)
 	}
 }
 
