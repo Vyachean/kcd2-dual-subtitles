@@ -53,13 +53,16 @@ KCD2 Dual Subtitles excludes its own canonical mod directory and known legacy st
 Inside an active mod's exact `Localization/<language>_xml.pak`, the source resolver recognizes root-level resources case-insensitively:
 
 - `text_ui_dialog.xml` as an explicit dialogue table; partial overrides are allowed and new dialogue IDs are retained after inherited stock rows;
-- `text_ui__*.xml` localization patch resources. Only IDs already known to the effective dialogue table are consumed from these generic `text_ui` patches, preventing unrelated UI strings from being reclassified as dialogue.
+- `text__*.xml` generic KCD2 localization patches, including the PTF-style shape used by Chineses Fix;
+- `text_ui__*.xml` generic localization patches, including the shape emitted by this project.
 
-If one PAK contains both forms, `text_ui_dialog.xml` is applied first as the dialogue table and `text_ui__*.xml` resources are applied afterwards as patch layers. Multiple patch resources are ordered deterministically by archive path.
+Generic localization patches can contain dialogue alongside items, quests, menus and other UI strings. They therefore may override only IDs already known to the accumulated dialogue table; unknown generic IDs are not reclassified as dialogue. If an explicit `text_ui_dialog.xml` is present, it is applied first, followed by generic patch resources in deterministic case-insensitive archive-name order.
 
-Malformed supported dialogue resources, duplicate IDs inside one resource, or case-insensitive duplicate supported resource names fail generation with the mod/PAK/resource context instead of silently producing an ambiguous or partial merge. Individual supported XML resources are size-limited before parsing so a malformed third-party PAK cannot make generation allocate unbounded memory.
+An explicit dialogue table must contain unique dialogue IDs because it is authoritative enough to introduce new rows. Generic localization patches are different: real KCD2 patch files can repeat localization keys. Relevant known dialogue rows are therefore applied sequentially in file order, so the last occurrence of the same dialogue ID wins deterministically. Duplicate unknown generic UI rows remain irrelevant because they are never admitted into the dialogue table.
 
-A mod is reported as a localization contribution only when applying its complete supported-resource stack actually changes the accumulated effective dialogue table. A mod that does not contain the selected language PAK, whose PAK contains no supported dialogue resource, or whose supported rows are identical to the accumulated table is irrelevant to that language.
+Malformed supported XML and case-insensitive duplicate supported resource filenames fail generation with mod/PAK/resource context. Individual supported XML resources are size-limited before parsing so a malformed third-party PAK cannot make generation allocate unbounded memory.
+
+A mod is reported as a localization contribution only when applying its complete supported-resource stack actually changes the accumulated effective dialogue table. A mod that does not contain the selected language PAK, whose PAK contains no supported localization resource, or whose supported rows are identical to the accumulated dialogue table is irrelevant to that language.
 
 ## Example: Chineses Fix
 
@@ -87,7 +90,26 @@ When Simplified Chinese is selected as Main or Secondary and the mod is active i
 
 The implementation is generic and contains no special case for this mod, Nexus ID, language, release version, or storefront layout.
 
-The public Nexus page confirms the outer PAK path and dialogue-correction scope, but it does not expose enough archive detail to treat the exact current `Chineses_xml.pak` contents as retail-verified. Focused validation with the real installed mod remains part of release acceptance.
+### Inspected 20260727 archive
+
+A user-supplied original Nexus archive for Chineses Fix version `20260727` was inspected during PR #88 without committing or redistributing its proprietary localization text.
+
+The inspected `Chineses_xml.pak` has SHA-256:
+
+```text
+d97f73111c834fc380ad28b89c9214e212c2ed77aa76e634e5098e8e5a7cac77
+```
+
+Its relevant structure is:
+
+```text
+Chineses_xml.pak
+└── text__chinesesfixptf.xml
+```
+
+That XML is approximately 5.25 MiB uncompressed and contains 22,368 three-cell localization rows. It mixes broad UI/quest localization with spoken-dialogue rows, so treating the entire resource as dialogue would be incorrect. It also contains six repeated localization IDs, including repeats with differing values, which is why generic patches use sequential last-occurrence-wins handling instead of the strict uniqueness rule used for an explicit `text_ui_dialog.xml`.
+
+This inspection validates the current real-world archive/resource shape and parser contract. It does **not** by itself replace an in-game acceptance run: final retail acceptance still needs to prove that the installed stock Chinese dialogue IDs intersect the expected corrections and that KCD2 loads the generated bilingual patch after Chineses Fix.
 
 ## Scope
 
