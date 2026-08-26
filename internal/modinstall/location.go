@@ -140,7 +140,7 @@ func directoryContainsAnyFile(directory string, names []string) bool {
 			if strings.EqualFold(entry.Name(), name) {
 				return true
 			}
-	}
+		}
 	}
 	return false
 }
