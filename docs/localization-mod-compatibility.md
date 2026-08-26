@@ -14,7 +14,11 @@ The stock table remains the fallback for rows that a localization mod does not o
 
 For a standard PC installation, local mods are read from `<game-root>/Mods`. Microsoft GDK installations use the same resolved `Documents/kingdomcome_mods` root as automatic installation.
 
-When `mod_order.txt` is absent, applicable local mod directories are applied in deterministic alphabetical folder order. When `mod_order.txt` exists, it is treated as the active whitelist and explicit order. Manifest `modid` values are used when available, so a mod folder does not need to have the same name as its ID.
+When `mod_order.txt` is absent, applicable local mod directories are applied in deterministic alphabetical folder order. When `mod_order.txt` exists, it is treated as the active whitelist and explicit order. Explicit manifest `modid` values are used, so a mod folder does not need to have the same name as its ID.
+
+KCD2 manifest activation is also respected. If a manifest contains `<supports>`, its version patterns are checked against `wh_sys_version` from the selected game's `system.cfg`; a mod that does not support the current game version is not used as a source. If a relevant localization mod has `<supports>` but the current game version cannot be determined, generation fails closed rather than guessing whether that mod is active.
+
+Warhorse documents that KCD2 can auto-generate a missing `modid` from the human-readable mod name, but the exact normalization contract is not documented. A relevant localization mod without an explicit `modid` therefore fails generation with a clear error instead of being silently ignored or assigned a guessed identity. A non-empty invalid `modid` is treated as not loadable by the normal KCD2 mod rules.
 
 KCD2 Dual Subtitles excludes its own canonical mod directory and known legacy staging names from source discovery. Regeneration therefore never consumes an older generated bilingual localization as an input.
 
@@ -24,6 +28,8 @@ Inside an active mod's exact `Localization/<language>_xml.pak`, the source resol
 
 - `text_ui_dialog.xml` as an explicit dialogue table; partial overrides are allowed and new dialogue IDs are retained after inherited stock rows;
 - `text_ui__*.xml` localization patch resources. Only IDs already known to the effective dialogue table are consumed from these generic `text_ui` patches, preventing unrelated UI strings from being reclassified as dialogue.
+
+If one PAK contains both forms, `text_ui_dialog.xml` is applied first as the dialogue table and `text_ui__*.xml` resources are applied afterwards as patch layers. Multiple patch resources are ordered deterministically by archive path.
 
 Malformed supported dialogue resources and duplicate IDs inside one resource fail generation with the mod/PAK/resource context instead of silently producing a partial merge.
 
