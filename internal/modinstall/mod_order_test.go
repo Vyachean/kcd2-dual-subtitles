@@ -45,14 +45,39 @@ func TestInstallIntoDocumentsAppendsMissingModOrderEntry(t *testing.T) {
 	}
 }
 
-func TestInstallIntoDocumentsLeavesExistingModOrderEntryByteStable(t *testing.T) {
+func TestInstallIntoDocumentsMovesExistingModOrderEntryToEnd(t *testing.T) {
 	documents := t.TempDir()
 	modsRoot := filepath.Join(documents, ModsDirectoryName)
 	if err := os.MkdirAll(modsRoot, 0o755); err != nil {
 		t.Fatalf("create mods root: %v", err)
 	}
 	modOrderPath := filepath.Join(modsRoot, ModOrderFilename)
-	original := []byte("first_mod\n  " + modarchive.ModID + "  \nlast_mod")
+	original := []byte("first_mod\n  " + modarchive.ModID + "  \nlast_mod\n")
+	if err := os.WriteFile(modOrderPath, original, 0o644); err != nil {
+		t.Fatalf("write mod_order.txt: %v", err)
+	}
+
+	if _, err := installIntoDocuments(documents, localization.Russian, []localization.DialogueRow{{ID: "id", Text: "text"}}); err != nil {
+		t.Fatalf("installIntoDocuments() error = %v", err)
+	}
+	got, err := os.ReadFile(modOrderPath)
+	if err != nil {
+		t.Fatalf("read mod_order.txt: %v", err)
+	}
+	want := "first_mod\nlast_mod\n" + modarchive.ModID + "\n"
+	if string(got) != want {
+		t.Fatalf("mod_order.txt = %q, want %q", got, want)
+	}
+}
+
+func TestInstallIntoDocumentsLeavesFinalModOrderEntryByteStable(t *testing.T) {
+	documents := t.TempDir()
+	modsRoot := filepath.Join(documents, ModsDirectoryName)
+	if err := os.MkdirAll(modsRoot, 0o755); err != nil {
+		t.Fatalf("create mods root: %v", err)
+	}
+	modOrderPath := filepath.Join(modsRoot, ModOrderFilename)
+	original := []byte("first_mod\n  " + modarchive.ModID + "  \n# trailing comment\n")
 	if err := os.WriteFile(modOrderPath, original, 0o644); err != nil {
 		t.Fatalf("write mod_order.txt: %v", err)
 	}
@@ -65,7 +90,7 @@ func TestInstallIntoDocumentsLeavesExistingModOrderEntryByteStable(t *testing.T)
 		t.Fatalf("read mod_order.txt: %v", err)
 	}
 	if string(got) != string(original) {
-		t.Fatalf("existing mod_order entry was rewritten: got %q, want byte-stable %q", got, original)
+		t.Fatalf("final mod_order entry was rewritten: got %q, want byte-stable %q", got, original)
 	}
 }
 
