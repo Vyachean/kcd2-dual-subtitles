@@ -88,6 +88,7 @@ Styled mode therefore needs to supply Libs/UI/hud.gfx. If another installed mod 
 - the language pair is selected at generation time; there is no in-game secondary-language switch yet;
 - standalone narrative/cinematic captions routed separately from the proven standard/bubble subtitle paths may remain single-language or unstyled;
 - subtitle-source composition is limited to dialogue localization; items, quests, tutorials, codex and general UI text are outside the current scope;
+- new dialogue introduced only by another mod's generic localization patch is not automatically classified as dialogue; safe support would require following that content mod's dialogue references rather than treating all new localization IDs as subtitles;
 - automatic game and Mods-folder discovery is best-effort, but both can be reviewed in the GUI and the Mods folder can be overridden explicitly;
 - not every Windows storefront build has been separately retail-tested even though compatibility and installation targeting are store-neutral;
 - the executable is not Authenticode-signed;
