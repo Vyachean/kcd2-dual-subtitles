@@ -168,24 +168,19 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 		return candidates, nil
 	}
 
-	byIdentity := make(map[string]modCandidate, len(candidates)*2)
+	byModID := make(map[string]modCandidate, len(candidates))
 	for _, candidate := range candidates {
-		for _, identity := range []string{candidate.modID, candidate.folder} {
-			key := strings.ToLower(strings.TrimSpace(identity))
-			if key == "" {
-				continue
-			}
-			if previous, duplicate := byIdentity[key]; duplicate && previous.path != candidate.path {
-				return nil, fmt.Errorf("ambiguous localization mod identity %q between %q and %q", identity, previous.path, candidate.path)
-			}
-			byIdentity[key] = candidate
+		key := strings.ToLower(strings.TrimSpace(candidate.modID))
+		if previous, duplicate := byModID[key]; duplicate && previous.path != candidate.path {
+			return nil, fmt.Errorf("ambiguous localization mod ID %q between %q and %q", candidate.modID, previous.path, candidate.path)
 		}
+		byModID[key] = candidate
 	}
 
 	ordered := make([]modCandidate, 0, len(candidates))
 	seen := make(map[string]struct{}, len(candidates))
 	for _, id := range order {
-		candidate, ok := byIdentity[strings.ToLower(id)]
+		candidate, ok := byModID[strings.ToLower(id)]
 		if !ok {
 			continue
 		}
@@ -361,7 +356,7 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 
 	files := make([]*zip.File, 0)
 	for _, file := range reader.File {
-		name := path.Clean(strings.ReplaceAll(file.Name, "\\", "/"))
+		name := normalizedArchiveName(file.Name)
 		if strings.Contains(name, "/") {
 			continue
 		}
