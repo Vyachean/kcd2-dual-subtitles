@@ -153,15 +153,10 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 		}
 		dir := filepath.Join(modsRoot, entry.Name())
 		pakPath := filepath.Join(dir, "Localization", pakFilename)
-		info, err := os.Lstat(pakPath)
-		if errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Lstat(pakPath); errors.Is(err, os.ErrNotExist) {
 			continue
-		}
-		if err != nil {
+		} else if err != nil {
 			return nil, fmt.Errorf("inspect localization PAK %q: %w", pakPath, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("localization PAK is not a regular file: %q", pakPath)
 		}
 
 		modID, name, active, err := readManifestIdentity(dir, entry.Name(), orderExists, gameVersion, gameVersionErr)
@@ -189,35 +184,49 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 			}
 			return left < right
 		})
-		return candidates, nil
+		return validateActiveLocalizationPAKs(candidates)
 	}
 
-	byModID := make(map[string]modCandidate, len(candidates))
+	byModID := make(map[string][]modCandidate, len(candidates))
 	for _, candidate := range candidates {
-		key := strings.ToLower(strings.TrimSpace(candidate.modID))
+		key := strings.TrimSpace(candidate.modID)
 		if key == "" {
 			return nil, fmt.Errorf("localization mod %q has no explicit mod ID required by %s", candidate.folder, modinstall.ModOrderFilename)
 		}
-		if previous, duplicate := byModID[key]; duplicate && previous.path != candidate.path {
-			return nil, fmt.Errorf("ambiguous localization mod ID %q between %q and %q", candidate.modID, previous.path, candidate.path)
-		}
-		byModID[key] = candidate
+		byModID[key] = append(byModID[key], candidate)
 	}
 
 	ordered := make([]modCandidate, 0, len(candidates))
 	seen := make(map[string]struct{}, len(candidates))
 	for _, id := range order {
-		candidate, ok := byModID[strings.ToLower(id)]
-		if !ok {
+		matches := byModID[id]
+		if len(matches) == 0 {
 			continue
 		}
+		if len(matches) > 1 {
+			return nil, fmt.Errorf("ambiguous active localization mod ID %q between %q and %q", id, matches[0].path, matches[1].path)
+		}
+		candidate := matches[0]
 		if _, duplicate := seen[candidate.path]; duplicate {
-			continue
+			return nil, fmt.Errorf("duplicate active localization mod ID %q in %s", id, modinstall.ModOrderFilename)
 		}
 		seen[candidate.path] = struct{}{}
 		ordered = append(ordered, candidate)
 	}
-	return ordered, nil
+	return validateActiveLocalizationPAKs(ordered)
+}
+
+func validateActiveLocalizationPAKs(candidates []modCandidate) ([]modCandidate, error) {
+	for _, candidate := range candidates {
+		info, err := os.Lstat(candidate.pak)
+		if err != nil {
+			return nil, fmt.Errorf("inspect active localization PAK %q: %w", candidate.pak, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("active localization PAK is not a regular file: %q", candidate.pak)
+		}
+	}
+	return candidates, nil
 }
 
 func readManifestIdentity(modDir, folder string, requireModID bool, gameVersion string, gameVersionErr error) (modID, name string, active bool, err error) {
@@ -237,6 +246,9 @@ func readManifestIdentity(modDir, folder string, requireModID bool, gameVersion 
 	}
 	modID = strings.TrimSpace(parsed.Info.ModID)
 	name = strings.TrimSpace(parsed.Info.Name)
+	if modID == "" && name == "" {
+		return "", "", false, nil
+	}
 	if modID == "" && requireModID {
 		return "", name, false, errors.New("manifest omits <modid>; an explicit ID is required to reproduce the active mod_order.txt whitelist safely")
 	}
@@ -255,11 +267,7 @@ func readManifestIdentity(modDir, folder string, requireModID bool, gameVersion 
 		}
 	}
 	if name == "" {
-		if modID != "" {
-			name = modID
-		} else {
-			name = folder
-		}
+		name = modID
 	}
 	return modID, name, true, nil
 }
@@ -367,8 +375,11 @@ func readModOrder(modsRoot string) ([]string, bool, error) {
 
 	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
 	order := make([]string, 0, len(lines))
-	for _, line := range lines {
+	for index, line := range lines {
 		line = strings.TrimSpace(line)
+		if index == 0 {
+			line = strings.TrimPrefix(line, "\uFEFF")
+		}
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
 			continue
 		}
