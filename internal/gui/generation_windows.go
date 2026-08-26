@@ -4,6 +4,7 @@ package gui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/generator"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
@@ -69,7 +70,22 @@ func (w *nativeWindow) finishGeneration() {
 	if outcome.result.HUDOverride {
 		mode = "styled HUD"
 	}
-	w.setStatus(fmt.Sprintf("Installed %s. Restart KCD2 before testing. %s", mode, outcome.result.InstallPath))
+	overrides := formatLocalizationOverrideStatus(outcome.result)
+	w.setStatus(fmt.Sprintf("Installed %s. Restart KCD2 before testing. %s%s", mode, outcome.result.InstallPath, overrides))
+}
+
+func formatLocalizationOverrideStatus(result generator.Result) string {
+	parts := make([]string, 0, 2)
+	if len(result.MainLocalizationOverrides) != 0 {
+		parts = append(parts, "Main: "+strings.Join(result.MainLocalizationOverrides, ", "))
+	}
+	if len(result.SecondaryLocalizationOverrides) != 0 {
+		parts = append(parts, "Secondary: "+strings.Join(result.SecondaryLocalizationOverrides, ", "))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " Localization overrides used: " + strings.Join(parts, "; ") + "."
 }
 
 // setGenerationBusy keeps every game-selection control stable while the
