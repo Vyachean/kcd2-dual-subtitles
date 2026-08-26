@@ -100,7 +100,7 @@ func resolveFromModsRootWithVersion(stockRows []localization.DialogueRow, modsRo
 
 	result := Result{Rows: rows}
 	for _, candidate := range candidates {
-		updated, used, err := overlayLocalizationPAK(result.Rows, candidate.pak)
+		updated, used, err := overlayLocalizationPAK(result.Rows, candidate.pak, candidate.modID)
 		if err != nil {
 			return Result{}, fmt.Errorf("apply localization mod %q (%s): %w", candidateLabel(candidate), candidate.pak, err)
 		}
@@ -372,14 +372,14 @@ func readModOrder(modsRoot string) ([]string, bool, error) {
 	return order, true, nil
 }
 
-func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]localization.DialogueRow, bool, error) {
+func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID string) ([]localization.DialogueRow, bool, error) {
 	reader, err := zip.OpenReader(pakPath)
 	if err != nil {
 		return nil, false, fmt.Errorf("open localization PAK: %w", err)
 	}
 	defer reader.Close()
 
-	resources, err := supportedLocalizationResources(reader.File)
+	resources, err := supportedLocalizationResources(reader.File, modID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -403,10 +403,9 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 		}
 		// An explicit dialogue table is authoritative enough to introduce new
 		// dialogue IDs, so duplicate IDs there are ambiguous and rejected. Generic
-		// localization patches (text__*.xml / text_ui__*.xml) can contain broad UI
-		// data and real-world KCD2 mods may repeat keys; for those, only already-
-		// known dialogue IDs are consumed and repeated rows apply sequentially,
-		// making the last matching row win deterministically.
+		// localization patches can contain broad UI data and real-world KCD2 mods
+		// may repeat keys; for those, only already-known dialogue IDs are consumed
+		// and repeated rows apply sequentially, making the last matching row win.
 		if resource.dialogue {
 			if err := requireUniqueIDs(patchRows); err != nil {
 				return nil, false, fmt.Errorf("validate %q: %w", resource.file.Name, err)
@@ -432,7 +431,7 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 	return rows, !dialogueRowsEqual(base, rows), nil
 }
 
-func supportedLocalizationResources(files []*zip.File) ([]localizationResource, error) {
+func supportedLocalizationResources(files []*zip.File, modID string) ([]localizationResource, error) {
 	resources := make([]localizationResource, 0)
 	seen := make(map[string]string)
 	for _, file := range files {
@@ -441,7 +440,7 @@ func supportedLocalizationResources(files []*zip.File) ([]localizationResource, 
 			continue
 		}
 		dialogue := strings.EqualFold(name, localization.DialogueXMLArchivePath)
-		if !dialogue && !isGenericLocalizationPatch(name) {
+		if !dialogue && !isGenericLocalizationPatch(name, modID) {
 			continue
 		}
 		canonical := strings.ToLower(name)
@@ -485,12 +484,22 @@ func normalizedArchiveName(name string) string {
 	return path.Clean(strings.ReplaceAll(name, "\\", "/"))
 }
 
-func isGenericLocalizationPatch(name string) bool {
+func isGenericLocalizationPatch(name, modID string) bool {
 	lower := strings.ToLower(path.Base(name))
 	if !strings.HasSuffix(lower, ".xml") {
 		return false
 	}
-	return strings.HasPrefix(lower, "text__") || strings.HasPrefix(lower, "text_ui__")
+	stem := strings.TrimSuffix(lower, ".xml")
+	expectedModID := strings.ToLower(strings.TrimSpace(modID))
+	if expectedModID != "" {
+		return strings.HasSuffix(stem, "_"+expectedModID)
+	}
+
+	// Warhorse can auto-generate a missing manifest modid from the human name,
+	// but its exact normalization is undocumented. Without an explicit ID we
+	// therefore accept the documented syntactic anything_<modid>.xml shape and
+	// still constrain its contents to already-known dialogue IDs.
+	return strings.Contains(stem, "_")
 }
 
 func readZipEntry(file *zip.File) ([]byte, error) {
