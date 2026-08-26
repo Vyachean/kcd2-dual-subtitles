@@ -152,11 +152,13 @@ The generated localization patch is written under every supported localization P
 
 For each Main/Secondary language, generation starts with the stock `Localization/<language>_xml.pak` and then composes compatible dialogue overrides from active local mods in the selected KCD2 Mods folder. The same KCD2 order rules are used: alphabetical local-mod folder order by default, or the `mod_order.txt` whitelist/order when that file exists.
 
-Only the selected language's exact localization PAK is inspected. Root-level `text_ui_dialog.xml` is recognized case-insensitively and can override existing rows or introduce new dialogue IDs. Generic `text_ui__*.xml` patch resources are restricted to IDs already known to the effective dialogue table so unrelated UI localization is not accidentally treated as subtitle dialogue. Supported resource names are case-folded for duplicate detection, malformed resources and duplicate IDs fail closed with source context, and XML reads are size-limited before parsing.
+Only the selected language's exact localization PAK is inspected. Root-level `text_ui_dialog.xml` is recognized case-insensitively and can override existing rows or introduce new dialogue IDs. Generic KCD2 localization patches named `text__*.xml` or `text_ui__*.xml` are restricted to IDs already known to the effective dialogue table so unrelated UI/items/quest localization is not accidentally treated as subtitle dialogue. The inspected Chineses Fix 20260727 archive uses the real PTF-style `text__chinesesfixptf.xml` form.
+
+Explicit `text_ui_dialog.xml` tables must have unique dialogue IDs. Generic localization patches may repeat keys in real mods; their rows are processed in file order and the last occurrence of an already-known dialogue ID wins. Supported resource filenames are case-folded for ambiguity detection, malformed XML fails with source context, and XML reads are size-limited before parsing.
 
 A mod is reported as a contribution only when its complete supported-resource stack actually changes the accumulated effective dialogue table. A manifest without an explicit `modid` can still participate when `mod_order.txt` is absent because folder order is sufficient; with an explicit order file, generation requires the exact manifest ID rather than guessing KCD2's generated identity.
 
-The project's own installed localization and known legacy staging residue are excluded from source discovery so Regenerate cannot consume previously generated bilingual text. See [`docs/localization-mod-compatibility.md`](docs/localization-mod-compatibility.md) for the detailed contract and the Chineses Fix compatibility example.
+The project's own installed localization and known legacy staging residue are excluded from source discovery so Regenerate cannot consume previously generated bilingual text. See [`docs/localization-mod-compatibility.md`](docs/localization-mod-compatibility.md) for the detailed contract, inspected Chineses Fix archive metadata and compatibility rationale.
 
 ### Game folder selection
 
