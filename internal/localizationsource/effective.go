@@ -58,6 +58,11 @@ type localizationResource struct {
 	dialogue bool
 }
 
+type genericDialogueValue struct {
+	resource string
+	text     string
+}
+
 // Resolve builds the effective dialogue table for language from the stock game
 // localization plus active local-mod overrides. Original files are read-only.
 func Resolve(gameRoot string, language localization.Language) (Result, error) {
@@ -392,6 +397,8 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID stri
 	for i, row := range rows {
 		index[row.ID] = i
 	}
+	genericValues := make(map[string]genericDialogueValue)
+
 	for _, resource := range resources {
 		data, err := readZipEntry(resource.file)
 		if err != nil {
@@ -401,31 +408,61 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID stri
 		if err != nil {
 			return nil, false, fmt.Errorf("parse %q: %w", resource.file.Name, err)
 		}
-		// An explicit dialogue table is authoritative enough to introduce new
-		// dialogue IDs, so duplicate IDs there are ambiguous and rejected. Generic
-		// localization patches can contain broad UI data and real-world KCD2 mods
-		// may repeat keys; for those, only already-known dialogue IDs are consumed
-		// and repeated rows apply sequentially, making the last matching row win.
+
 		if resource.dialogue {
+			// An explicit dialogue table can introduce new dialogue IDs. Duplicate
+			// IDs there are ambiguous and rejected.
 			if err := requireUniqueIDs(patchRows); err != nil {
 				return nil, false, fmt.Errorf("validate %q: %w", resource.file.Name, err)
 			}
+			for _, row := range patchRows {
+				if i, ok := index[row.ID]; ok {
+					if rows[i].Text != row.Text {
+						rows[i] = row
+					}
+					continue
+				}
+				index[row.ID] = len(rows)
+				rows = append(rows, row)
+			}
+			continue
 		}
 
+		// A generic localization resource may repeat a key internally; the last
+		// occurrence in that resource is its effective value. Unknown IDs are not
+		// admitted because the same file can contain UI/items/quest strings.
+		finalRows := make(map[string]localization.DialogueRow)
 		for _, row := range patchRows {
-			if i, ok := index[row.ID]; ok {
+			if _, known := index[row.ID]; known {
+				finalRows[row.ID] = row
+			}
+		}
+		ids := make([]string, 0, len(finalRows))
+		for id := range finalRows {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+
+		for _, id := range ids {
+			row := finalRows[id]
+			if previous, seen := genericValues[id]; seen && previous.text != row.Text {
+				return nil, false, fmt.Errorf(
+					"dialogue ID %q has conflicting values in generic localization resources %q and %q; KCD2 cross-resource override order is undocumented",
+					id,
+					previous.resource,
+					resource.file.Name,
+				)
+			}
+			if _, seen := genericValues[id]; !seen {
+				genericValues[id] = genericDialogueValue{resource: resource.file.Name, text: row.Text}
+			}
+
+			i := index[id]
+			// Warhorse documents the second cell as irrelevant to displayed text.
+			// Preserve the inherited row when only that non-display field differs.
+			if rows[i].Text != row.Text {
 				rows[i] = row
-				continue
 			}
-			// Generic localization patches can also contain items, quests, menus
-			// and other UI strings. New IDs are therefore accepted only from an
-			// explicit dialogue table; generic patches may modify IDs already
-			// proven to be dialogue by stock or an earlier explicit dialogue table.
-			if !resource.dialogue {
-				continue
-			}
-			index[row.ID] = len(rows)
-			rows = append(rows, row)
 		}
 	}
 	return rows, !dialogueRowsEqual(base, rows), nil
@@ -452,8 +489,9 @@ func supportedLocalizationResources(files []*zip.File, modID string) ([]localiza
 	}
 
 	// An explicit text_ui_dialog.xml is the base layer inside one localization
-	// PAK. Generic patch resources follow in deterministic case-insensitive name
-	// order. Case-fold duplicates were rejected above, so the ordering is total.
+	// PAK. Generic resources are sorted only to make parsing/errors deterministic.
+	// If two generic resources disagree on one dialogue ID, overlay fails closed
+	// instead of pretending that this sort order is KCD2's undocumented winner.
 	sort.Slice(resources, func(i, j int) bool {
 		if resources[i].dialogue != resources[j].dialogue {
 			return resources[i].dialogue
@@ -473,7 +511,7 @@ func dialogueRowsEqual(left, right []localization.DialogueRow) bool {
 		return false
 	}
 	for i := range left {
-		if left[i] != right[i] {
+		if left[i].ID != right[i].ID || left[i].Text != right[i].Text {
 			return false
 		}
 	}
