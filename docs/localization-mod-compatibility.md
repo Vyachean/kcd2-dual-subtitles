@@ -36,7 +36,7 @@ When `mod_order.txt` is absent, applicable local mod directories are applied in 
 
 KCD2 manifest activation is also respected. If a manifest contains `<supports>`, its version patterns are checked against `wh_sys_version` from the selected game's `system.cfg`; a mod that does not support the current game version is not used as a source. If a relevant localization mod has `<supports>` but the current game version cannot be determined, generation fails closed rather than guessing whether that mod is active.
 
-Warhorse documents that KCD2 can auto-generate a missing `modid` from the human-readable mod name. When `mod_order.txt` is absent, the exact generated ID is not needed because local load order is determined by the folder name, so such a mod can still be used. When `mod_order.txt` exists, the exact ID is required to reproduce its whitelist safely; a relevant localization mod without an explicit `modid` therefore fails closed instead of being assigned a guessed identity. A non-empty invalid `modid` is treated as not loadable by the normal KCD2 mod rules.
+Warhorse documents that KCD2 can auto-generate a missing `modid` from the human-readable mod name. When `mod_order.txt` is absent, the exact generated ID is not needed for mod load order. For localization resource discovery, an explicit manifest ID is used to validate the documented filename suffix when available. If the ID is auto-generated, its normalization is not documented, so the resolver accepts the documented syntactic generic-localization shape and still constrains its contents to already-known dialogue IDs. When `mod_order.txt` exists, the exact ID is required to reproduce its whitelist safely; a relevant localization mod without an explicit `modid` therefore fails closed instead of being assigned a guessed identity. A non-empty invalid `modid` is treated as not loadable by the normal KCD2 mod rules.
 
 ### Generated-mod precedence
 
@@ -48,21 +48,56 @@ If `mod_order.txt` is absent, the tool does **not** create it: KCD2 treats an or
 
 KCD2 Dual Subtitles excludes its own canonical mod directory and known legacy staging names from source discovery. Regeneration therefore never consumes an older generated bilingual localization as an input.
 
+## Official text-localization format
+
+Warhorse documents mod text localization as `Localization/<language>_xml.pak`. Inside that text PAK, a mod may contain any number of localization XML files named:
+
+```text
+<anything>_<modid>.xml
+```
+
+Each file uses the same three-cell row shape:
+
+```xml
+<Table>
+  <Row>
+    <Cell>stringId</Cell>
+    <Cell>source/authoring text (not used by the game)</Cell>
+    <Cell>actual localized text</Cell>
+  </Row>
+</Table>
+```
+
+The first cell is the localization string ID and the third cell is the text displayed by the game. `text__<modid>.xml` and `text_ui__<modid>.xml` are therefore only examples of the general `anything_<modid>.xml` contract, not the complete set of valid prefixes. Warhorse notes that before game patch 1.3 only the `text__<modid>.xml` form loaded reliably; current post-1.3 localization supports the general filename form. Files that do not follow the documented suffix convention may still be seen by the game at the wrong time and produce hash-clash log errors; they are not treated as a separate supported localization format here.
+
+`Localization/<language>.pak` is the voiceover container and is outside this text/subtitle-source feature.
+
 ## Supported localization resources
 
 Inside an active mod's exact `Localization/<language>_xml.pak`, the source resolver recognizes root-level resources case-insensitively:
 
-- `text_ui_dialog.xml` as an explicit dialogue table; partial overrides are allowed and new dialogue IDs are retained after inherited stock rows;
-- `text__*.xml` generic KCD2 localization patches, including the PTF-style shape used by Chineses Fix;
-- `text_ui__*.xml` generic localization patches, including the shape emitted by this project.
+- `text_ui_dialog.xml` as an explicit replacement/overlay of the stock dialogue table; partial overrides are allowed and new dialogue IDs are retained after inherited stock rows;
+- any documented generic `<anything>_<modid>.xml` localization patch. With an explicit manifest `modid`, the filename must end in that exact mod ID. `text__<modid>.xml`, `text_ui__<modid>.xml`, and Chineses Fix's `text__chinesesfixptf.xml` are all instances of this rule.
 
-Generic localization patches can contain dialogue alongside items, quests, menus and other UI strings. They therefore may override only IDs already known to the accumulated dialogue table; unknown generic IDs are not reclassified as dialogue. If an explicit `text_ui_dialog.xml` is present, it is applied first, followed by generic patch resources in deterministic case-insensitive archive-name order.
+Generic localization patches can contain dialogue alongside items, quests, menus and other UI strings. They therefore may override only IDs already known to the accumulated dialogue table; unknown generic IDs are not reclassified as dialogue. This is what prevents a broad translation mod from turning ordinary interface labels into bilingual text. If an explicit `text_ui_dialog.xml` is present, it is applied first, followed by generic patch resources in deterministic case-insensitive archive-name order.
 
 An explicit dialogue table must contain unique dialogue IDs because it is authoritative enough to introduce new rows. Generic localization patches are different: real KCD2 patch files can repeat localization keys. Relevant known dialogue rows are therefore applied sequentially in file order, so the last occurrence of the same dialogue ID wins deterministically. Duplicate unknown generic UI rows remain irrelevant because they are never admitted into the dialogue table.
 
 Malformed supported XML and case-insensitive duplicate supported resource filenames fail generation with mod/PAK/resource context. Individual supported XML resources are size-limited before parsing so a malformed third-party PAK cannot make generation allocate unbounded memory.
 
 A mod is reported as a localization contribution only when applying its complete supported-resource stack actually changes the accumulated effective dialogue table. A mod that does not contain the selected language PAK, whose PAK contains no supported localization resource, or whose supported rows are identical to the accumulated dialogue table is irrelevant to that language.
+
+### Semantic scope versus file-format support
+
+Supporting every documented text-localization filename does **not** mean every localized string becomes bilingual. The project intentionally limits generic patches to dialogue IDs already known from the stock/effective dialogue table.
+
+Therefore:
+
+- corrections/retranslations of existing KCD2 dialogue and subtitle IDs are composed regardless of the valid `anything_<modid>.xml` prefix used by the translation mod;
+- menu, inventory, quest-log, codex, tutorial and other UI strings remain single-language;
+- brand-new dialogue introduced by another content/quest mod through only a generic localization patch is not automatically admitted, because the generic file itself does not identify which new IDs are dialogue rather than UI. Supporting that safely would require discovering dialogue references from the content mod, not merely accepting more localization filenames.
+
+This boundary is deliberate: it preserves the user's requirement that bilingual output appears only in subtitles/dialogue, not across the whole interface.
 
 ## Example: Chineses Fix
 
