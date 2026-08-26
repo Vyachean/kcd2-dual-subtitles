@@ -128,11 +128,11 @@ func activeLocalizationMods(modsRoot, pakFilename string) ([]modCandidate, error
 			return nil, fmt.Errorf("localization PAK is not a regular file: %q", pakPath)
 		}
 
-		modID, name, err := readManifestIdentity(dir, entry.Name())
+		modID, name, active, err := readManifestIdentity(dir)
 		if err != nil {
 			return nil, fmt.Errorf("read localization mod identity from %q: %w", dir, err)
 		}
-		if isProjectOwnedIdentity(entry.Name(), modID) {
+		if !active || isProjectOwnedIdentity(entry.Name(), modID) {
 			continue
 		}
 		candidates = append(candidates, modCandidate{
@@ -150,7 +150,12 @@ func activeLocalizationMods(modsRoot, pakFilename string) ([]modCandidate, error
 	}
 	if !exists {
 		sort.Slice(candidates, func(i, j int) bool {
-			return strings.ToLower(candidates[i].folder) < strings.ToLower(candidates[j].folder)
+			left := strings.ToLower(candidates[i].folder)
+			right := strings.ToLower(candidates[j].folder)
+			if left == right {
+				return candidates[i].folder < candidates[j].folder
+			}
+			return left < right
 		})
 		return candidates, nil
 	}
@@ -185,28 +190,31 @@ func activeLocalizationMods(modsRoot, pakFilename string) ([]modCandidate, error
 	return ordered, nil
 }
 
-func readManifestIdentity(modDir, fallback string) (modID, name string, err error) {
+func readManifestIdentity(modDir string) (modID, name string, active bool, err error) {
 	manifestPath := filepath.Join(modDir, "mod.manifest")
 	data, err := os.ReadFile(manifestPath)
 	if errors.Is(err, os.ErrNotExist) {
-		return fallback, fallback, nil
+		return "", "", false, nil
 	}
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	var parsed manifest
 	if err := xml.Unmarshal(data, &parsed); err != nil {
-		return "", "", fmt.Errorf("parse %q: %w", manifestPath, err)
+		// KCD2 requires a valid mod.manifest for a local folder to be loadable.
+		// An invalid manifest therefore describes an inactive folder, not a
+		// localization layer that should make generation fail.
+		return "", "", false, nil
 	}
 	modID = strings.TrimSpace(parsed.Info.ModID)
 	if modID == "" {
-		modID = fallback
+		return "", "", false, nil
 	}
 	name = strings.TrimSpace(parsed.Info.Name)
 	if name == "" {
 		name = modID
 	}
-	return modID, name, nil
+	return modID, name, true, nil
 }
 
 func readModOrder(modsRoot string) ([]string, bool, error) {
