@@ -5,14 +5,30 @@ KCD2 Dual Subtitles builds Main and Secondary text from the effective installed 
 For each selected language the source stack is:
 
 1. stock `<game-root>/Localization/<language>_xml.pak`;
-2. active local mods from the same resolved Mods root used by installation;
+2. active local mods from the same resolved mod root used by installation/status/uninstall;
 3. later active overrides win for the same dialogue localization ID.
 
 The stock table remains the fallback for rows that a localization mod does not override.
 
-## Active mod order
+## Resolved mod root
 
-For a standard PC installation, local mods are read from `<game-root>/Mods`. Microsoft GDK installations use the same resolved `Documents/kingdomcome_mods` root as automatic installation.
+The mod root is not assumed to be a universal `<game-root>/Mods` path. Source discovery uses the same `modinstall` layout resolver as the rest of the application.
+
+For standard PC layouts (Steam, GOG, Epic and compatible installations), the resolved mod root is:
+
+```text
+<game-root>/Mods
+```
+
+For Microsoft GDK / Xbox PC layouts, it is:
+
+```text
+<Documents>/kingdomcome_mods
+```
+
+GDK is selected from package markers in or next to the selected game root, and the Documents path is resolved through the Windows Known Folder API. No localization-source code independently guesses or hardcodes a second mod location.
+
+## Active mod order
 
 When `mod_order.txt` is absent, applicable local mod directories are applied in deterministic alphabetical folder order. When `mod_order.txt` exists, it is treated as the active whitelist and explicit order. Explicit manifest `modid` values are used, so a mod folder does not need to have the same name as its ID.
 
@@ -37,18 +53,32 @@ A mod that does not contain the selected language PAK, or whose PAK contains no 
 
 ## Example: Chineses Fix
 
-Nexus Mods #3108 (`Chineses Fix`) installs a Simplified Chinese localization override under a normal KCD2 mod directory, for example:
+Nexus Mods #3108 (`Chineses Fix`) installs a Simplified Chinese localization override beneath the active KCD2 mod root. In resolver-neutral form the relevant path is:
 
 ```text
-Mods/chinesesfixptf/Localization/Chineses_xml.pak
+<resolved-mod-root>/chinesesfixptf/Localization/Chineses_xml.pak
 ```
 
-When Simplified Chinese is selected as Main or Secondary and the mod is active in the resolved Mods root, compatible dialogue corrections from that PAK are composed over the stock `Localization/Chineses_xml.pak` before Dual Subtitles creates its bilingual patch.
+That means, for example:
 
-The implementation is generic and contains no special case for this mod, Nexus ID, language, or release version.
+```text
+<game-root>/Mods/chinesesfixptf/Localization/Chineses_xml.pak
+```
+
+on a standard installation, or:
+
+```text
+<Documents>/kingdomcome_mods/chinesesfixptf/Localization/Chineses_xml.pak
+```
+
+on a Microsoft GDK / Xbox PC installation.
+
+When Simplified Chinese is selected as Main or Secondary and the mod is active in the resolved mod root, compatible dialogue corrections from that PAK are composed over the stock `Localization/Chineses_xml.pak` before Dual Subtitles creates its bilingual patch.
+
+The implementation is generic and contains no special case for this mod, Nexus ID, language, release version, or storefront layout.
 
 ## Scope
 
-This feature composes local mods visible in the resolved KCD2 Mods root. It does not claim Steam Workshop localization discovery unless Workshop content is also present through that same resolved local-mod layout.
+This feature composes local mods visible in the resolved KCD2 mod root. It does not claim Steam Workshop localization discovery unless Workshop content is also present through that same resolved local-mod layout.
 
 Original game and third-party mod files are never modified.
