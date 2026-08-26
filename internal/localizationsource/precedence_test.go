@@ -83,7 +83,7 @@ func TestResolveFromModsRootFailsClosedForLocalizationModWithoutExplicitModIDWhe
 	if err == nil {
 		t.Fatal("resolveFromModsRoot() error = nil, want fail-closed missing-modid error")
 	}
-	for _, want := range []string{"generated-id", "omits <modid>", "mod_order.txt"} {
+	for _, want := range []string{"generated-id", "no explicit mod ID", "mod_order.txt"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error = %q, want substring %q", err, want)
 		}
