@@ -26,12 +26,16 @@ var (
 
 // Request describes one end-to-end mod generation operation. An empty
 // OutputPath selects automatic installation; a non-empty OutputPath writes a
-// portable mod ZIP instead. CanaryID enables an explicit acceptance-only
-// marker on one existing localization row. An empty SubtitleStyle keeps the
-// accepted tagged format for backward compatibility. HUDPresentation is used
-// only with SubtitleStyleHUD; nil preserves the live-proven rc.10 defaults.
+// portable mod ZIP instead. ModsRoot, when non-empty, is an explicit user
+// override for both installed-mod source discovery and automatic publication;
+// otherwise the layout-aware resolver selects the Mods root from GameRoot.
+// CanaryID enables an explicit acceptance-only marker on one existing
+// localization row. An empty SubtitleStyle keeps the accepted tagged format for
+// backward compatibility. HUDPresentation is used only with SubtitleStyleHUD;
+// nil preserves the live-proven rc.10 defaults.
 type Request struct {
 	GameRoot          string
+	ModsRoot          string
 	MainLanguage      localization.Language
 	SecondaryLanguage localization.Language
 	SubtitleStyle     SubtitleStyle
@@ -101,11 +105,11 @@ func Generate(request Request) (Result, error) {
 		return Result{}, err
 	}
 
-	mainSource, err := localizationsource.Resolve(request.GameRoot, request.MainLanguage)
+	mainSource, err := resolveLocalizationSource(request, request.MainLanguage)
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve main language %s: %w", request.MainLanguage, err)
 	}
-	secondarySource, err := localizationsource.Resolve(request.GameRoot, request.SecondaryLanguage)
+	secondarySource, err := resolveLocalizationSource(request, request.SecondaryLanguage)
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve secondary language %s: %w", request.SecondaryLanguage, err)
 	}
@@ -174,17 +178,37 @@ func Generate(request Request) (Result, error) {
 		return result, nil
 	}
 
-	var installPath string
-	if result.HUDOverride {
-		installPath, err = modinstall.InstallVersionedWithHUDForLanguages(request.GameRoot, targetLanguages, patchRows, derivedHUD, version)
-	} else {
-		installPath, err = modinstall.InstallVersionedForLanguages(request.GameRoot, targetLanguages, patchRows, version)
-	}
+	installPath, err := installGeneratedMod(request, targetLanguages, patchRows, derivedHUD, version, result.HUDOverride)
 	if err != nil {
 		return Result{}, fmt.Errorf("install generated mod: %w", err)
 	}
 	result.InstallPath = installPath
 	return result, nil
+}
+
+func resolveLocalizationSource(request Request, language localization.Language) (localizationsource.Result, error) {
+	modsRoot := strings.TrimSpace(request.ModsRoot)
+	if modsRoot != "" {
+		return localizationsource.ResolveWithModsRoot(request.GameRoot, modsRoot, language)
+	}
+	return localizationsource.Resolve(request.GameRoot, language)
+}
+
+func installGeneratedMod(request Request, targetLanguages []localization.Language, patchRows []localization.DialogueRow, derivedHUD []byte, version string, withHUD bool) (string, error) {
+	modsRoot := strings.TrimSpace(request.ModsRoot)
+	if modsRoot != "" {
+		if _, err := modinstall.ValidateCustomModsRoot(modsRoot); err != nil {
+			return "", err
+		}
+		if withHUD {
+			return modinstall.InstallVersionedWithHUDForLanguagesInModsRoot(modsRoot, targetLanguages, patchRows, derivedHUD, version)
+		}
+		return modinstall.InstallVersionedForLanguagesInModsRoot(modsRoot, targetLanguages, patchRows, version)
+	}
+	if withHUD {
+		return modinstall.InstallVersionedWithHUDForLanguages(request.GameRoot, targetLanguages, patchRows, derivedHUD, version)
+	}
+	return modinstall.InstallVersionedForLanguages(request.GameRoot, targetLanguages, patchRows, version)
 }
 
 func contributionNames(contributions []localizationsource.Contribution) []string {
