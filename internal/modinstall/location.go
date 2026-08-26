@@ -16,10 +16,12 @@ type InstallLayout string
 const (
 	InstallLayoutGameRoot     InstallLayout = "game-root"
 	InstallLayoutGDKDocuments InstallLayout = "gdk-documents"
+	InstallLayoutCustom       InstallLayout = "custom"
 )
 
 // InstallLocation is the resolved mod root for one selected KCD2 installation.
-// All install/status/uninstall operations must use the same resolved ModsRoot.
+// All install/status/uninstall/source-discovery operations must use the same
+// ModsRoot. Layout describes how the path was selected, not a storefront.
 type InstallLocation struct {
 	ModsRoot string
 	Layout   InstallLayout
@@ -43,6 +45,36 @@ func ResolveInstallLocation(gameRoot string) (InstallLocation, error) {
 // Documents resolver.
 func ResolveModSourceLocation(gameRoot string) (InstallLocation, error) {
 	return resolveInstallLocation(gameRoot, documentsPath)
+}
+
+// ValidateCustomModsRoot normalizes a user-selected Mods root. The GUI only
+// accepts an existing real directory so a typo cannot silently split source
+// discovery from installation. Automatic roots may still be absent until the
+// first install creates them.
+func ValidateCustomModsRoot(modsRoot string) (InstallLocation, error) {
+	modsRoot = strings.TrimSpace(modsRoot)
+	if modsRoot == "" {
+		return InstallLocation{}, errors.New("KCD2 mod root is empty")
+	}
+	absolute, err := filepath.Abs(modsRoot)
+	if err != nil {
+		return InstallLocation{}, fmt.Errorf("normalize KCD2 mod root %q: %w", modsRoot, err)
+	}
+	modsRoot = filepath.Clean(absolute)
+	info, err := os.Lstat(modsRoot)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return InstallLocation{}, fmt.Errorf("KCD2 mod root does not exist: %q", modsRoot)
+		}
+		return InstallLocation{}, fmt.Errorf("inspect KCD2 mod root %q: %w", modsRoot, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return InstallLocation{}, fmt.Errorf("KCD2 mod root must not be a symlink: %q", modsRoot)
+	}
+	if !info.IsDir() {
+		return InstallLocation{}, fmt.Errorf("KCD2 mod root is not a directory: %q", modsRoot)
+	}
+	return InstallLocation{ModsRoot: modsRoot, Layout: InstallLayoutCustom}, nil
 }
 
 func resolveInstallLocation(gameRoot string, resolveDocuments func() (string, error)) (InstallLocation, error) {
@@ -108,7 +140,7 @@ func directoryContainsAnyFile(directory string, names []string) bool {
 			if strings.EqualFold(entry.Name(), name) {
 				return true
 			}
-		}
+	}
 	}
 	return false
 }
