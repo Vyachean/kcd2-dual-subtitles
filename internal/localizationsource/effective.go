@@ -207,7 +207,7 @@ func readManifestIdentity(modDir string) (modID, name string, active bool, err e
 		return "", "", false, nil
 	}
 	modID = strings.TrimSpace(parsed.Info.ModID)
-	if modID == "" {
+	if !validModID(modID) {
 		return "", "", false, nil
 	}
 	name = strings.TrimSpace(parsed.Info.Name)
@@ -215,6 +215,18 @@ func readManifestIdentity(modDir string) (modID, name string, active bool, err e
 		name = modID
 	}
 	return modID, name, true, nil
+}
+
+func validModID(modID string) bool {
+	if modID == "" {
+		return false
+	}
+	for _, r := range modID {
+		if (r < 'a' || r > 'z') && r != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 func readModOrder(modsRoot string) ([]string, bool, error) {
