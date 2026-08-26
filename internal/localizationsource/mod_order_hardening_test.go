@@ -1,6 +1,7 @@
 package localizationsource
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -103,6 +104,30 @@ func TestUnlistedModDoesNotValidateItsLocalizationPAK(t *testing.T) {
 	result, err := resolveFromModsRoot(stock, modsRoot, "English_xml.pak")
 	if err != nil {
 		t.Fatalf("resolveFromModsRoot() error = %v, want unlisted mod ignored before PAK validation", err)
+	}
+	if !reflect.DeepEqual(result.Rows, stock) || len(result.Contributions) != 0 {
+		t.Fatalf("result = %+v, want unlisted mod ignored", result)
+	}
+}
+
+func TestUnlistedModDoesNotRequireGameVersionForSupports(t *testing.T) {
+	modsRoot := t.TempDir()
+	writeLocalizationMod(t, modsRoot, "unlisted", "unlisted", "Unlisted", "English_xml.pak", map[string]string{
+		localization.DialogueXMLArchivePath: dialogueXML(localization.DialogueRow{ID: "a", Source: "mod", Text: "override"}),
+	})
+	manifestPath := filepath.Join(modsRoot, "unlisted", "mod.manifest")
+	manifest := `<?xml version="1.0"?><kcd_mod><info><name>Unlisted</name><modid>unlisted</modid></info><supports><version>1.5*</version></supports></kcd_mod>`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modsRoot, modinstall.ModOrderFilename), []byte("some_other_mod\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stock := []localization.DialogueRow{{ID: "a", Source: "stock", Text: "stock"}}
+
+	result, err := resolveFromModsRootWithVersion(stock, modsRoot, "English_xml.pak", "", errors.New("version unavailable"))
+	if err != nil {
+		t.Fatalf("resolveFromModsRootWithVersion() error = %v, want unlisted supports ignored", err)
 	}
 	if !reflect.DeepEqual(result.Rows, stock) || len(result.Contributions) != 0 {
 		t.Fatalf("result = %+v, want unlisted mod ignored", result)
