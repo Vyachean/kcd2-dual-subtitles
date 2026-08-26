@@ -401,8 +401,16 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 		if err != nil {
 			return nil, false, fmt.Errorf("parse %q: %w", resource.file.Name, err)
 		}
-		if err := requireUniqueIDs(patchRows); err != nil {
-			return nil, false, fmt.Errorf("validate %q: %w", resource.file.Name, err)
+		// An explicit dialogue table is authoritative enough to introduce new
+		// dialogue IDs, so duplicate IDs there are ambiguous and rejected. Generic
+		// localization patches (text__*.xml / text_ui__*.xml) can contain broad UI
+		// data and real-world KCD2 mods may repeat keys; for those, only already-
+		// known dialogue IDs are consumed and repeated rows apply sequentially,
+		// making the last matching row win deterministically.
+		if resource.dialogue {
+			if err := requireUniqueIDs(patchRows); err != nil {
+				return nil, false, fmt.Errorf("validate %q: %w", resource.file.Name, err)
+			}
 		}
 
 		for _, row := range patchRows {
@@ -410,10 +418,10 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 				rows[i] = row
 				continue
 			}
-			// Generic text_ui__*.xml resources can also contain items/menu/UI
-			// localization. New IDs are therefore accepted only from an explicit
-			// dialogue table; patch resources may modify IDs already proven to be
-			// dialogue by stock or an earlier explicit dialogue table.
+			// Generic localization patches can also contain items, quests, menus
+			// and other UI strings. New IDs are therefore accepted only from an
+			// explicit dialogue table; generic patches may modify IDs already
+			// proven to be dialogue by stock or an earlier explicit dialogue table.
 			if !resource.dialogue {
 				continue
 			}
@@ -433,7 +441,7 @@ func supportedLocalizationResources(files []*zip.File) ([]localizationResource, 
 			continue
 		}
 		dialogue := strings.EqualFold(name, localization.DialogueXMLArchivePath)
-		if !dialogue && !isTextUIPatch(name) {
+		if !dialogue && !isGenericLocalizationPatch(name) {
 			continue
 		}
 		canonical := strings.ToLower(name)
@@ -477,9 +485,12 @@ func normalizedArchiveName(name string) string {
 	return path.Clean(strings.ReplaceAll(name, "\\", "/"))
 }
 
-func isTextUIPatch(name string) bool {
+func isGenericLocalizationPatch(name string) bool {
 	lower := strings.ToLower(path.Base(name))
-	return strings.HasPrefix(lower, "text_ui__") && strings.HasSuffix(lower, ".xml")
+	if !strings.HasSuffix(lower, ".xml") {
+		return false
+	}
+	return strings.HasPrefix(lower, "text__") || strings.HasPrefix(lower, "text_ui__")
 }
 
 func readZipEntry(file *zip.File) ([]byte, error) {
