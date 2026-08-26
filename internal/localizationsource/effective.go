@@ -17,6 +17,8 @@ import (
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modinstall"
 )
 
+const maxLocalizationResourceBytes int64 = 128 << 20
+
 // Contribution identifies one active installed mod that changed the effective
 // dialogue source for a selected language.
 type Contribution struct {
@@ -48,6 +50,12 @@ type manifest struct {
 	Supports struct {
 		Versions []string `xml:"version"`
 	} `xml:"supports"`
+}
+
+type localizationResource struct {
+	file     *zip.File
+	name     string
+	dialogue bool
 }
 
 // Resolve builds the effective dialogue table for language from the stock game
@@ -94,7 +102,7 @@ func resolveFromModsRootWithVersion(stockRows []localization.DialogueRow, modsRo
 	for _, candidate := range candidates {
 		updated, used, err := overlayLocalizationPAK(result.Rows, candidate.pak)
 		if err != nil {
-			return Result{}, fmt.Errorf("apply localization mod %q (%s): %w", candidate.modID, candidate.pak, err)
+			return Result{}, fmt.Errorf("apply localization mod %q (%s): %w", candidateLabel(candidate), candidate.pak, err)
 		}
 		if !used {
 			continue
@@ -109,6 +117,16 @@ func resolveFromModsRootWithVersion(stockRows []localization.DialogueRow, modsRo
 	return result, nil
 }
 
+func candidateLabel(candidate modCandidate) string {
+	if strings.TrimSpace(candidate.modID) != "" {
+		return candidate.modID
+	}
+	if strings.TrimSpace(candidate.name) != "" {
+		return candidate.name
+	}
+	return candidate.folder
+}
+
 func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersionErr error) ([]modCandidate, error) {
 	entries, err := os.ReadDir(modsRoot)
 	if errors.Is(err, os.ErrNotExist) {
@@ -116,6 +134,11 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read mods root %q: %w", modsRoot, err)
+	}
+
+	order, orderExists, err := readModOrder(modsRoot)
+	if err != nil {
+		return nil, err
 	}
 
 	candidates := make([]modCandidate, 0)
@@ -136,7 +159,7 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 			return nil, fmt.Errorf("localization PAK is not a regular file: %q", pakPath)
 		}
 
-		modID, name, active, err := readManifestIdentity(dir, gameVersion, gameVersionErr)
+		modID, name, active, err := readManifestIdentity(dir, entry.Name(), orderExists, gameVersion, gameVersionErr)
 		if err != nil {
 			return nil, fmt.Errorf("read localization mod identity from %q: %w", dir, err)
 		}
@@ -152,11 +175,7 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 		})
 	}
 
-	order, exists, err := readModOrder(modsRoot)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
+	if !orderExists {
 		sort.Slice(candidates, func(i, j int) bool {
 			left := strings.ToLower(candidates[i].folder)
 			right := strings.ToLower(candidates[j].folder)
@@ -171,6 +190,9 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 	byModID := make(map[string]modCandidate, len(candidates))
 	for _, candidate := range candidates {
 		key := strings.ToLower(strings.TrimSpace(candidate.modID))
+		if key == "" {
+			return nil, fmt.Errorf("localization mod %q has no explicit mod ID required by %s", candidate.folder, modinstall.ModOrderFilename)
+		}
 		if previous, duplicate := byModID[key]; duplicate && previous.path != candidate.path {
 			return nil, fmt.Errorf("ambiguous localization mod ID %q between %q and %q", candidate.modID, previous.path, candidate.path)
 		}
@@ -193,7 +215,7 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 	return ordered, nil
 }
 
-func readManifestIdentity(modDir, gameVersion string, gameVersionErr error) (modID, name string, active bool, err error) {
+func readManifestIdentity(modDir, folder string, requireModID bool, gameVersion string, gameVersionErr error) (modID, name string, active bool, err error) {
 	manifestPath := filepath.Join(modDir, "mod.manifest")
 	data, err := os.ReadFile(manifestPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -209,11 +231,11 @@ func readManifestIdentity(modDir, gameVersion string, gameVersionErr error) (mod
 		return "", "", false, nil
 	}
 	modID = strings.TrimSpace(parsed.Info.ModID)
-	if modID == "" {
-		name = strings.TrimSpace(parsed.Info.Name)
-		return "", name, false, errors.New("manifest omits <modid>; KCD2 can auto-generate an ID from <name>, but that normalization is not defined well enough to reproduce load-order identity safely")
+	name = strings.TrimSpace(parsed.Info.Name)
+	if modID == "" && requireModID {
+		return "", name, false, errors.New("manifest omits <modid>; an explicit ID is required to reproduce the active mod_order.txt whitelist safely")
 	}
-	if !validModID(modID) {
+	if modID != "" && !validModID(modID) {
 		return "", "", false, nil
 	}
 	if len(parsed.Supports.Versions) != 0 {
@@ -227,9 +249,12 @@ func readManifestIdentity(modDir, gameVersion string, gameVersionErr error) (mod
 			return "", "", false, nil
 		}
 	}
-	name = strings.TrimSpace(parsed.Info.Name)
 	if name == "" {
-		name = modID
+		if modID != "" {
+			name = modID
+		} else {
+			name = folder
+		}
 	}
 	return modID, name, true, nil
 }
@@ -354,67 +379,98 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 	}
 	defer reader.Close()
 
-	files := make([]*zip.File, 0)
-	for _, file := range reader.File {
-		name := normalizedArchiveName(file.Name)
-		if strings.Contains(name, "/") {
-			continue
-		}
-		if name == localization.DialogueXMLArchivePath || isTextUIPatch(name) {
-			files = append(files, file)
-		}
+	resources, err := supportedLocalizationResources(reader.File)
+	if err != nil {
+		return nil, false, err
 	}
-	if len(files) == 0 {
+	if len(resources) == 0 {
 		return base, false, nil
 	}
-	// A full dialogue table is the base layer inside one localization PAK;
-	// KCD2-style text_ui__*.xml resources are patch layers and therefore must
-	// apply afterwards. Patch resources are ordered by name for deterministic
-	// behavior when a mod contains more than one.
-	sort.Slice(files, func(i, j int) bool {
-		leftDialogue := normalizedArchiveName(files[i].Name) == localization.DialogueXMLArchivePath
-		rightDialogue := normalizedArchiveName(files[j].Name) == localization.DialogueXMLArchivePath
-		if leftDialogue != rightDialogue {
-			return leftDialogue
-		}
-		return normalizedArchiveName(files[i].Name) < normalizedArchiveName(files[j].Name)
-	})
 
 	rows := append([]localization.DialogueRow(nil), base...)
 	index := make(map[string]int, len(rows))
 	for i, row := range rows {
 		index[row.ID] = i
 	}
-	used := false
-	for _, file := range files {
-		data, err := readZipEntry(file)
+	for _, resource := range resources {
+		data, err := readZipEntry(resource.file)
 		if err != nil {
-			return nil, false, fmt.Errorf("read %q: %w", file.Name, err)
+			return nil, false, fmt.Errorf("read %q: %w", resource.file.Name, err)
 		}
 		patchRows, err := localization.ParseDialogueXML(data)
 		if err != nil {
-			return nil, false, fmt.Errorf("parse %q: %w", file.Name, err)
+			return nil, false, fmt.Errorf("parse %q: %w", resource.file.Name, err)
 		}
 		if err := requireUniqueIDs(patchRows); err != nil {
-			return nil, false, fmt.Errorf("validate %q: %w", file.Name, err)
+			return nil, false, fmt.Errorf("validate %q: %w", resource.file.Name, err)
 		}
 
-		allowNew := normalizedArchiveName(file.Name) == localization.DialogueXMLArchivePath
 		for _, row := range patchRows {
 			if i, ok := index[row.ID]; ok {
 				rows[i] = row
-				used = true
 				continue
 			}
-			if !allowNew {
+			// Generic text_ui__*.xml resources can also contain items/menu/UI
+			// localization. New IDs are therefore accepted only from an explicit
+			// dialogue table; patch resources may modify IDs already proven to be
+			// dialogue by stock or an earlier explicit dialogue table.
+			if !resource.dialogue {
 				continue
 			}
 			index[row.ID] = len(rows)
 			rows = append(rows, row)
-			used = true
 		}
 	}
-	return rows, used, nil
+	return rows, !dialogueRowsEqual(base, rows), nil
+}
+
+func supportedLocalizationResources(files []*zip.File) ([]localizationResource, error) {
+	resources := make([]localizationResource, 0)
+	seen := make(map[string]string)
+	for _, file := range files {
+		name := normalizedArchiveName(file.Name)
+		if name == "." || strings.Contains(name, "/") {
+			continue
+		}
+		dialogue := strings.EqualFold(name, localization.DialogueXMLArchivePath)
+		if !dialogue && !isTextUIPatch(name) {
+			continue
+		}
+		canonical := strings.ToLower(name)
+		if previous, duplicate := seen[canonical]; duplicate {
+			return nil, fmt.Errorf("duplicate localization resource %q conflicts with %q", file.Name, previous)
+		}
+		seen[canonical] = file.Name
+		resources = append(resources, localizationResource{file: file, name: name, dialogue: dialogue})
+	}
+
+	// An explicit text_ui_dialog.xml is the base layer inside one localization
+	// PAK. Generic patch resources follow in deterministic case-insensitive name
+	// order. Case-fold duplicates were rejected above, so the ordering is total.
+	sort.Slice(resources, func(i, j int) bool {
+		if resources[i].dialogue != resources[j].dialogue {
+			return resources[i].dialogue
+		}
+		left := strings.ToLower(resources[i].name)
+		right := strings.ToLower(resources[j].name)
+		if left == right {
+			return resources[i].name < resources[j].name
+		}
+		return left < right
+	})
+	return resources, nil
+}
+
+func dialogueRowsEqual(left, right []localization.DialogueRow) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizedArchiveName(name string) string {
@@ -427,17 +483,30 @@ func isTextUIPatch(name string) bool {
 }
 
 func readZipEntry(file *zip.File) ([]byte, error) {
+	return readZipEntryLimited(file, maxLocalizationResourceBytes)
+}
+
+func readZipEntryLimited(file *zip.File, limit int64) ([]byte, error) {
+	if limit <= 0 {
+		return nil, errors.New("localization resource size limit must be positive")
+	}
+	if file.UncompressedSize64 > uint64(limit) {
+		return nil, fmt.Errorf("localization resource exceeds %d-byte size limit", limit)
+	}
 	entry, err := file.Open()
 	if err != nil {
 		return nil, err
 	}
-	data, readErr := io.ReadAll(entry)
+	data, readErr := io.ReadAll(io.LimitReader(entry, limit+1))
 	closeErr := entry.Close()
 	if readErr != nil {
 		return nil, readErr
 	}
 	if closeErr != nil {
 		return nil, closeErr
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("localization resource exceeds %d-byte size limit", limit)
 	}
 	return data, nil
 }
