@@ -27,14 +27,21 @@ type InstallLocation struct {
 
 var errEmptyGameRoot = errors.New("game root is empty")
 
-// ResolveInstallLocation selects the KCD2 mod root from the selected Windows
-// game installation. Normal PC builds use <game-root>/Mods. Microsoft GDK
-// packaged builds are identified from package files present with the game
-// content and use the current user's Documents/kingdomcome_mods path.
+// ResolveInstallLocation selects the KCD2 mod root for automatic installation.
+// Automatic publication remains Windows-only.
 func ResolveInstallLocation(gameRoot string) (InstallLocation, error) {
 	if runtime.GOOS != "windows" {
 		return InstallLocation{}, ErrAutomaticInstallUnsupported
 	}
+	return ResolveModSourceLocation(gameRoot)
+}
+
+// ResolveModSourceLocation uses the same filesystem-layout resolver as
+// automatic installation, but is also available to read installed mod content
+// during portable generation. Standard <game-root>/Mods layouts are therefore
+// resolvable cross-platform; a GDK layout still requires a working Windows
+// Documents resolver.
+func ResolveModSourceLocation(gameRoot string) (InstallLocation, error) {
 	return resolveInstallLocation(gameRoot, documentsPath)
 }
 
