@@ -45,6 +45,9 @@ type manifest struct {
 		Name  string `xml:"name"`
 		ModID string `xml:"modid"`
 	} `xml:"info"`
+	Supports struct {
+		Versions []string `xml:"version"`
+	} `xml:"supports"`
 }
 
 // Resolve builds the effective dialogue table for language from the stock game
@@ -72,12 +75,17 @@ func Resolve(gameRoot string, language localization.Language) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve localization mod root: %w", err)
 	}
-	return resolveFromModsRoot(stockRows, location.ModsRoot, info.PakFilename)
+	gameVersion, gameVersionErr := readGameVersion(gameRoot)
+	return resolveFromModsRootWithVersion(stockRows, location.ModsRoot, info.PakFilename, gameVersion, gameVersionErr)
 }
 
 func resolveFromModsRoot(stockRows []localization.DialogueRow, modsRoot, pakFilename string) (Result, error) {
+	return resolveFromModsRootWithVersion(stockRows, modsRoot, pakFilename, "", nil)
+}
+
+func resolveFromModsRootWithVersion(stockRows []localization.DialogueRow, modsRoot, pakFilename, gameVersion string, gameVersionErr error) (Result, error) {
 	rows := append([]localization.DialogueRow(nil), stockRows...)
-	candidates, err := activeLocalizationMods(modsRoot, pakFilename)
+	candidates, err := activeLocalizationMods(modsRoot, pakFilename, gameVersion, gameVersionErr)
 	if err != nil {
 		return Result{}, err
 	}
@@ -101,7 +109,7 @@ func resolveFromModsRoot(stockRows []localization.DialogueRow, modsRoot, pakFile
 	return result, nil
 }
 
-func activeLocalizationMods(modsRoot, pakFilename string) ([]modCandidate, error) {
+func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersionErr error) ([]modCandidate, error) {
 	entries, err := os.ReadDir(modsRoot)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -128,7 +136,7 @@ func activeLocalizationMods(modsRoot, pakFilename string) ([]modCandidate, error
 			return nil, fmt.Errorf("localization PAK is not a regular file: %q", pakPath)
 		}
 
-		modID, name, active, err := readManifestIdentity(dir)
+		modID, name, active, err := readManifestIdentity(dir, gameVersion, gameVersionErr)
 		if err != nil {
 			return nil, fmt.Errorf("read localization mod identity from %q: %w", dir, err)
 		}
@@ -190,7 +198,7 @@ func activeLocalizationMods(modsRoot, pakFilename string) ([]modCandidate, error
 	return ordered, nil
 }
 
-func readManifestIdentity(modDir string) (modID, name string, active bool, err error) {
+func readManifestIdentity(modDir, gameVersion string, gameVersionErr error) (modID, name string, active bool, err error) {
 	manifestPath := filepath.Join(modDir, "mod.manifest")
 	data, err := os.ReadFile(manifestPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -210,6 +218,17 @@ func readManifestIdentity(modDir string) (modID, name string, active bool, err e
 	if !validModID(modID) {
 		return "", "", false, nil
 	}
+	if len(parsed.Supports.Versions) != 0 {
+		if gameVersionErr != nil {
+			return "", "", false, fmt.Errorf("determine current game version for manifest <supports>: %w", gameVersionErr)
+		}
+		if strings.TrimSpace(gameVersion) == "" {
+			return "", "", false, errors.New("determine current game version for manifest <supports>: wh_sys_version is empty")
+		}
+		if !supportsGameVersion(parsed.Supports.Versions, gameVersion) {
+			return "", "", false, nil
+		}
+	}
 	name = strings.TrimSpace(parsed.Info.Name)
 	if name == "" {
 		name = modID
@@ -227,6 +246,85 @@ func validModID(modID string) bool {
 		}
 	}
 	return true
+}
+
+func supportsGameVersion(patterns []string, gameVersion string) bool {
+	gameVersion = strings.TrimSpace(gameVersion)
+	for _, pattern := range patterns {
+		if wildcardVersionMatch(strings.TrimSpace(pattern), gameVersion) {
+			return true
+		}
+	}
+	return false
+}
+
+func wildcardVersionMatch(pattern, value string) bool {
+	if pattern == "" {
+		return false
+	}
+	if !strings.Contains(pattern, "*") {
+		return pattern == value
+	}
+
+	parts := strings.Split(pattern, "*")
+	position := 0
+	if parts[0] != "" {
+		if !strings.HasPrefix(value, parts[0]) {
+			return false
+		}
+		position = len(parts[0])
+	}
+	for i := 1; i < len(parts)-1; i++ {
+		if parts[i] == "" {
+			continue
+		}
+		relative := strings.Index(value[position:], parts[i])
+		if relative < 0 {
+			return false
+		}
+		position += relative + len(parts[i])
+	}
+	last := parts[len(parts)-1]
+	if last == "" {
+		return true
+	}
+	return strings.HasSuffix(value[position:], last)
+}
+
+func readGameVersion(gameRoot string) (string, error) {
+	configPath := filepath.Join(gameRoot, "system.cfg")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return "", fmt.Errorf("read %q: %w", configPath, err)
+	}
+
+	var version string
+	for _, rawLine := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "--") || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || strings.TrimSpace(key) != "wh_sys_version" {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if len(value) >= 2 && ((value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'')) {
+			value = value[1 : len(value)-1]
+		}
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return "", fmt.Errorf("parse %q: wh_sys_version is empty", configPath)
+		}
+		if version != "" && version != value {
+			return "", fmt.Errorf("parse %q: conflicting wh_sys_version values %q and %q", configPath, version, value)
+		}
+		version = value
+	}
+	if version == "" {
+		return "", fmt.Errorf("parse %q: wh_sys_version not found", configPath)
+	}
+	return version, nil
 }
 
 func readModOrder(modsRoot string) ([]string, bool, error) {
