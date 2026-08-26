@@ -24,7 +24,14 @@ func InspectForGameRoot(gameRoot string) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	return inspectInModsRoot(location.ModsRoot)
+	return InspectInModsRoot(location.ModsRoot)
+}
+
+// InspectInModsRoot inspects the project installation in an already-selected
+// Mods root. Callers that allow a user override must use this path consistently
+// instead of resolving the game root again.
+func InspectInModsRoot(modsRoot string) (Status, error) {
+	return inspectInModsRoot(modsRoot)
 }
 
 // Documents-specific inspection remains only for focused GDK filesystem tests.
