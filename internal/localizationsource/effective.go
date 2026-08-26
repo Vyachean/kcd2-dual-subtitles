@@ -145,6 +145,12 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 	if err != nil {
 		return nil, err
 	}
+	activeOrderIDs := make(map[string]struct{}, len(order))
+	if orderExists {
+		for _, id := range order {
+			activeOrderIDs[id] = struct{}{}
+		}
+	}
 
 	candidates := make([]modCandidate, 0)
 	for _, entry := range entries {
@@ -159,7 +165,7 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 			return nil, fmt.Errorf("inspect localization PAK %q: %w", pakPath, err)
 		}
 
-		modID, name, active, err := readManifestIdentity(dir, entry.Name(), orderExists, gameVersion, gameVersionErr)
+		modID, name, active, err := readManifestIdentity(dir, entry.Name(), orderExists, activeOrderIDs, gameVersion, gameVersionErr)
 		if err != nil {
 			return nil, fmt.Errorf("read localization mod identity from %q: %w", dir, err)
 		}
@@ -229,7 +235,7 @@ func validateActiveLocalizationPAKs(candidates []modCandidate) ([]modCandidate, 
 	return candidates, nil
 }
 
-func readManifestIdentity(modDir, folder string, requireModID bool, gameVersion string, gameVersionErr error) (modID, name string, active bool, err error) {
+func readManifestIdentity(modDir, folder string, requireModID bool, activeOrderIDs map[string]struct{}, gameVersion string, gameVersionErr error) (modID, name string, active bool, err error) {
 	manifestPath := filepath.Join(modDir, "mod.manifest")
 	data, err := os.ReadFile(manifestPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -254,6 +260,11 @@ func readManifestIdentity(modDir, folder string, requireModID bool, gameVersion 
 	}
 	if modID != "" && !validModID(modID) {
 		return "", "", false, nil
+	}
+	if requireModID {
+		if _, listed := activeOrderIDs[modID]; !listed {
+			return modID, name, false, nil
+		}
 	}
 	if len(parsed.Supports.Versions) != 0 {
 		if gameVersionErr != nil {
