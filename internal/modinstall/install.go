@@ -128,13 +128,15 @@ func ensureModOrderContains(modsRoot, modID string) error {
 	return nil
 }
 
+// modOrderWithEntry writes exactly one project entry as the final active
+// mod_order.txt entry. Unrelated lines retain their original byte order.
 func modOrderWithEntry(original []byte, modID string) []byte {
 	newline := []byte("\n")
 	if bytes.Contains(original, []byte("\r\n")) {
 		newline = []byte("\r\n")
 	}
 
-	updated := append([]byte(nil), original...)
+	updated, _ := removeModOrderEntries(original, modID)
 	if len(updated) > 0 && !bytes.HasSuffix(updated, []byte("\n")) && !bytes.HasSuffix(updated, []byte("\r")) {
 		updated = append(updated, newline...)
 	}
@@ -143,11 +145,22 @@ func modOrderWithEntry(original []byte, modID string) []byte {
 	return updated
 }
 
+// modOrderContains returns true only when modID occurs exactly once and is the
+// final active entry. Comments and blank lines after it do not affect priority.
+// This stronger invariant is required because the generated bilingual patch
+// must load after every localization source it composed.
 func modOrderContains(data []byte, modID string) bool {
+	count := 0
+	lastActive := ""
 	for _, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
-		if strings.TrimSpace(line) == modID {
-			return true
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
 		}
+		if line == modID {
+			count++
+		}
+		lastActive = line
 	}
-	return false
+	return count == 1 && lastActive == modID
 }
