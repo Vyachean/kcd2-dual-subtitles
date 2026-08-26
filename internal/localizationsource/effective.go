@@ -421,7 +421,7 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID stri
 		if err != nil {
 			return nil, false, fmt.Errorf("read %q: %w", resource.file.Name, err)
 		}
-		patchRows, err := localization.ParseDialogueXML(data)
+		patchRows, err := parseLocalizationResource(data, resource.dialogue)
 		if err != nil {
 			return nil, false, fmt.Errorf("parse %q: %w", resource.file.Name, err)
 		}
