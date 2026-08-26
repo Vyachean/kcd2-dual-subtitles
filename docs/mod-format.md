@@ -1,6 +1,6 @@
 # KCD2 Dual Subtitles — generated mod format
 
-This document records the game-facing layout and compatibility rules used by the stable v0.3 generation path.
+This document records the game-facing layout and compatibility rules used by the current v0.3 generation path.
 
 ## Principles
 
@@ -9,24 +9,26 @@ This document records the game-facing layout and compatibility rules used by the
 - Never redistribute retail localization tables or a prebuilt proprietary `hud.gfx`.
 - Keep game-facing PAK/ZIP metadata deterministic and compatible with KCD2 CryPak.
 - Fail closed on unknown HUD structure or a foreign HUD override.
-- Treat the selected game installation as the source of truth for one resolved mod root; install, status, conflict checks, load order and uninstall must all use that same root.
+- Maintain one selected Mods root for all mod-facing operations. The layout resolver supplies the default, while the native GUI may explicitly override that path; source discovery, install, status, conflict checks, load order, Regenerate and Uninstall must all use the same selected root.
 
 ## Input data
 
-For each selected source language, the generator reads:
+For each selected source language, the generator starts with:
 
 ```text
 <game-root>\Localization\<language>_xml.pak
 └── text_ui_dialog.xml
 ```
 
+and then composes compatible active dialogue localization overrides from the selected Mods root. See [`localization-mod-compatibility.md`](localization-mod-compatibility.md) for the third-party source contract.
+
 The supported language filename/tag registry is explicit in `internal/localization/language.go`. Unknown future `*_xml.pak` files are not assigned guessed metadata.
 
 The selected Main and Secondary languages are **text sources only**. They do not determine which single localization slot the generated mod targets.
 
-## Resolved installation root
+## Selected Mods root
 
-Automatic installation is Windows-only and resolves one `ModsRoot` from the normalized selected KCD2 root.
+Automatic installation is Windows-only. The layout-aware resolver derives the default Mods root from the normalized selected KCD2 root.
 
 For a normal PC layout:
 
@@ -42,8 +44,9 @@ For a Microsoft GDK packaged layout:
 
 GDK classification uses package artifacts in or adjacent to the selected game root (`gamelaunchhelper.exe`, `MicrosoftGame.config`, or `appxmanifest.xml`), not the spelling of its library path.
 
-All of these operations use the same resolved `ModsRoot`:
+The native Windows GUI displays this value as **Mods folder**. **Change...** selects an existing custom Mods root; **Reset** restores the automatic path. Selecting a different Game folder clears the custom override. The selected path, whether automatic or custom, is used by:
 
+- effective localization-source discovery;
 - generated mod publication;
 - foreign-HUD scanning;
 - `mod_order.txt` integration;
@@ -51,7 +54,7 @@ All of these operations use the same resolved `ModsRoot`:
 - Regenerate state;
 - Uninstall.
 
-The project-owned directory beneath either root is:
+The project-owned directory beneath the selected root is:
 
 ```text
 <ModsRoot>\kcd_dual_subtitles\
@@ -87,11 +90,11 @@ Stable v0.3 therefore emits the same generated bilingual patch under **every sup
 
 This makes the chosen subtitle pair independent from the game's active UI/text language.
 
-The payload is still generated from only the selected Main/Secondary source tables.
+The payload is still generated from only the selected Main/Secondary effective source tables.
 
 ## Patch XML
 
-`text_ui__kcd_dual_subtitles.xml` contains only dialogue rows whose generated value differs from the selected Main-language source value.
+`text_ui__kcd_dual_subtitles.xml` contains only dialogue rows whose generated value differs from the selected effective Main-language source value.
 
 Rows that remain unchanged are omitted. The merge contract preserves:
 
@@ -231,29 +234,31 @@ Development builds use `dev`; release and release-candidate workflows inject the
 
 ## `mod_order.txt`
 
-The installer does not create `mod_order.txt` when absent.
+The installer does not create `mod_order.txt` when absent because KCD2 treats the file as an active whitelist.
 
-If an existing file is present in the resolved `ModsRoot`:
+If an existing file is present in the selected `ModsRoot`:
 
-- an existing `kcd_dual_subtitles` entry is preserved;
-- if missing, exactly one project entry is appended;
-- unrelated entries are never removed or reordered;
+- all existing project entries are normalized to exactly one `kcd_dual_subtitles` entry;
+- that project entry is the final active entry, so generated localization loads after source localization mods;
+- unrelated entries retain their relative order;
 - newline style is preserved where practical;
-- publication/load-order changes participate in staged rollback behavior.
+- publication/load-order changes participate in the same staged rollback transaction as the generated mod directory.
 
-Uninstall removes only this project's matching entries from that same resolved root.
+If no order file exists and an actually contributing localization source folder alphabetically sorts after `kcd_dual_subtitles`, automatic installation fails closed rather than create a whitelist or publish an output that the later source mod would overwrite.
+
+Uninstall removes only this project's matching entries from that same selected root.
 
 ## Foreign HUD conflicts
 
-Because styled mode supplies `Libs/UI/hud.gfx`, the installer scans other installed mods in the resolved `ModsRoot` for a foreign HUD supplied either as a loose file or inside a Data PAK.
+Because styled mode supplies `Libs/UI/hud.gfx`, the installer scans other installed mods in the selected `ModsRoot` for a foreign HUD supplied either as a loose file or inside a Data PAK.
 
 If a foreign HUD is found, styled installation stops with an explicit conflict rather than silently changing load precedence or patching an unvalidated third-party binary.
 
 ## Publication and GDK/OneDrive fallback
 
-The generated replacement is built in a staging directory **inside the resolved `ModsRoot`** and normally published by same-volume rename. This keeps replacement/rollback semantics identical for a standard game-root `Mods` directory and for the GDK Documents directory.
+The generated replacement is built in a transaction workspace **beside the selected `ModsRoot`**, never as a mod-shaped direct child inside KCD2's scanned mod root. The staged candidate and previous installation remain on the same volume as the target for normal rename publication while avoiding stale duplicate mods if the process is interrupted.
 
-The Microsoft GDK path uses the Windows Known Folders API, so redirected/OneDrive Documents are supported. Windows/OneDrive can transiently deny the final rename even when all writes succeeded. For retryable permission/sharing failures the installer:
+The Microsoft GDK path uses the Windows Known Folders API, so redirected/OneDrive Documents are supported. Windows/OneDrive can transiently deny the final rename even when directory creation and writes succeed. For retryable permission/sharing failures the installer:
 
 1. performs bounded rename retries;
 2. if they remain unsuccessful, uses a guarded recursive copy into an absent target;
@@ -276,6 +281,6 @@ Unknown IDs are rejected. No retail row ID or proprietary dialogue content is co
 
 The localization patch filename/layout was established by v0.1 retail acceptance on KCD2 1.5.6 Xbox / Microsoft Store. The v0.3 HUD/Data PAK path was then developed through narrow RC proofs separating CryPak loading, HUD resource precedence, AVM1 execution and final TextField styling.
 
-The GDK/Documents installation path is live-validated. The standard `<game-root>\Mods` target follows the normal KCD2 PC mod layout and is covered by automated resolver/install tests; additional storefront retail runs are evidence expansion, not separate generator architectures.
+The GDK/Documents automatic installation path is live-validated. The standard `<game-root>\Mods` target follows the normal KCD2 PC mod layout and is covered by automated resolver/install tests. The explicit custom Mods-root path is a user-selected override over the same filesystem contract; it does not introduce a new content format or storefront mode.
 
 For the RC experiments and their lessons, see [`v0.3-development-handoff.md`](v0.3-development-handoff.md).
