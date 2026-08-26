@@ -158,13 +158,6 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 			continue
 		}
 		dir := filepath.Join(modsRoot, entry.Name())
-		pakPath := filepath.Join(dir, "Localization", pakFilename)
-		if _, err := os.Lstat(pakPath); errors.Is(err, os.ErrNotExist) {
-			continue
-		} else if err != nil {
-			return nil, fmt.Errorf("inspect localization PAK %q: %w", pakPath, err)
-		}
-
 		modID, name, active, err := readManifestIdentity(dir, entry.Name(), orderExists, activeOrderIDs, gameVersion, gameVersionErr)
 		if err != nil {
 			return nil, fmt.Errorf("read localization mod identity from %q: %w", dir, err)
@@ -172,6 +165,22 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 		if !active || isProjectOwnedIdentity(entry.Name(), modID) {
 			continue
 		}
+
+		pakPath := filepath.Join(dir, "Localization", pakFilename)
+		info, err := os.Lstat(pakPath)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("inspect active localization PAK %q: %w", pakPath, err)
+		}
+		if orderExists && modID == "" {
+			return nil, fmt.Errorf("localization mod %q has no explicit mod ID required by %s", entry.Name(), modinstall.ModOrderFilename)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("active localization PAK is not a regular file: %q", pakPath)
+		}
+
 		candidates = append(candidates, modCandidate{
 			folder: entry.Name(),
 			path:   dir,
@@ -190,16 +199,12 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 			}
 			return left < right
 		})
-		return validateActiveLocalizationPAKs(candidates)
+		return candidates, nil
 	}
 
 	byModID := make(map[string][]modCandidate, len(candidates))
 	for _, candidate := range candidates {
-		key := strings.TrimSpace(candidate.modID)
-		if key == "" {
-			return nil, fmt.Errorf("localization mod %q has no explicit mod ID required by %s", candidate.folder, modinstall.ModOrderFilename)
-		}
-		byModID[key] = append(byModID[key], candidate)
+		byModID[candidate.modID] = append(byModID[candidate.modID], candidate)
 	}
 
 	ordered := make([]modCandidate, 0, len(candidates))
@@ -219,20 +224,7 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 		seen[candidate.path] = struct{}{}
 		ordered = append(ordered, candidate)
 	}
-	return validateActiveLocalizationPAKs(ordered)
-}
-
-func validateActiveLocalizationPAKs(candidates []modCandidate) ([]modCandidate, error) {
-	for _, candidate := range candidates {
-		info, err := os.Lstat(candidate.pak)
-		if err != nil {
-			return nil, fmt.Errorf("inspect active localization PAK %q: %w", candidate.pak, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("active localization PAK is not a regular file: %q", candidate.pak)
-		}
-	}
-	return candidates, nil
+	return ordered, nil
 }
 
 func readManifestIdentity(modDir, folder string, requireModID bool, activeOrderIDs map[string]struct{}, gameVersion string, gameVersionErr error) (modID, name string, active bool, err error) {
@@ -255,13 +247,16 @@ func readManifestIdentity(modDir, folder string, requireModID bool, activeOrderI
 	if modID == "" && name == "" {
 		return "", "", false, nil
 	}
-	if modID == "" && requireModID {
-		return "", name, false, errors.New("manifest omits <modid>; an explicit ID is required to reproduce the active mod_order.txt whitelist safely")
-	}
 	if modID != "" && !validModID(modID) {
 		return "", "", false, nil
 	}
 	if requireModID {
+		if modID == "" {
+			// KCD2 can generate an ID from <name>, but its normalization is not
+			// documented. Defer the fail-closed decision until the caller proves
+			// this mod actually contains the selected language PAK.
+			return "", name, true, nil
+		}
 		if _, listed := activeOrderIDs[modID]; !listed {
 			return modID, name, false, nil
 		}
