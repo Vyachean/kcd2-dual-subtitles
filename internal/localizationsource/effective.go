@@ -209,12 +209,15 @@ func readManifestIdentity(modDir, gameVersion string, gameVersionErr error) (mod
 	}
 	var parsed manifest
 	if err := xml.Unmarshal(data, &parsed); err != nil {
-		// KCD2 requires a valid mod.manifest for a local folder to be loadable.
-		// An invalid manifest therefore describes an inactive folder, not a
-		// localization layer that should make generation fail.
+		// KCD2 requires a valid mod.manifest for a local folder to function
+		// properly. Invalid XML cannot be reproduced as an active source.
 		return "", "", false, nil
 	}
 	modID = strings.TrimSpace(parsed.Info.ModID)
+	if modID == "" {
+		name = strings.TrimSpace(parsed.Info.Name)
+		return "", name, false, errors.New("manifest omits <modid>; KCD2 can auto-generate an ID from <name>, but that normalization is not defined well enough to reproduce load-order identity safely")
+	}
 	if !validModID(modID) {
 		return "", "", false, nil
 	}
@@ -369,7 +372,18 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 	if len(files) == 0 {
 		return base, false, nil
 	}
-	sort.Slice(files, func(i, j int) bool { return files[i].Name < files[j].Name })
+	// A full dialogue table is the base layer inside one localization PAK;
+	// KCD2-style text_ui__*.xml resources are patch layers and therefore must
+	// apply afterwards. Patch resources are ordered by name for deterministic
+	// behavior when a mod contains more than one.
+	sort.Slice(files, func(i, j int) bool {
+		leftDialogue := normalizedArchiveName(files[i].Name) == localization.DialogueXMLArchivePath
+		rightDialogue := normalizedArchiveName(files[j].Name) == localization.DialogueXMLArchivePath
+		if leftDialogue != rightDialogue {
+			return leftDialogue
+		}
+		return normalizedArchiveName(files[i].Name) < normalizedArchiveName(files[j].Name)
+	})
 
 	rows := append([]localization.DialogueRow(nil), base...)
 	index := make(map[string]int, len(rows))
@@ -390,7 +404,7 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 			return nil, false, fmt.Errorf("validate %q: %w", file.Name, err)
 		}
 
-		allowNew := path.Base(file.Name) == localization.DialogueXMLArchivePath
+		allowNew := normalizedArchiveName(file.Name) == localization.DialogueXMLArchivePath
 		for _, row := range patchRows {
 			if i, ok := index[row.ID]; ok {
 				rows[i] = row
@@ -406,6 +420,10 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath string) ([]
 		}
 	}
 	return rows, used, nil
+}
+
+func normalizedArchiveName(name string) string {
+	return path.Clean(strings.ReplaceAll(name, "\\", "/"))
 }
 
 func isTextUIPatch(name string) bool {
