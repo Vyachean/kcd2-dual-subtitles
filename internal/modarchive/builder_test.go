@@ -66,8 +66,11 @@ func TestBuildArchiveBytesStructure(t *testing.T) {
 				t.Fatalf("nested PAK entries = %d, want 1", len(nested.File))
 			}
 			entry := nested.File[0]
-			if entry.Method != zip.Store {
-				t.Fatalf("nested PAK compression = %d, want zip.Store (%d)", entry.Method, zip.Store)
+			if entry.Method != zip.Deflate {
+				t.Fatalf("nested PAK compression = %d, want zip.Deflate (%d)", entry.Method, zip.Deflate)
+			}
+			if entry.CreatorVersion != kcd2DeflateZIPVersion || entry.ReaderVersion != kcd2DeflateZIPVersion {
+				t.Fatalf("nested PAK ZIP versions = creator:%d reader:%d, want %d/%d", entry.CreatorVersion, entry.ReaderVersion, kcd2DeflateZIPVersion, kcd2DeflateZIPVersion)
 			}
 			if entry.Flags&0x8 != 0 {
 				t.Fatalf("nested PAK uses ZIP data descriptor flag: flags=%#x", entry.Flags)
