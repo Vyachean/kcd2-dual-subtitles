@@ -18,7 +18,10 @@ type generationLogContext struct {
 
 func formatGenerationStarted(context generationLogContext) string {
 	lines := generationContextLines("Generation started", context)
-	lines = append(lines, "→ Reading stock localization and active localization mods...")
+	lines = append(lines,
+		"→ Reading stock localization and active localization mods...",
+		"Note: the generated patch is installed only for the selected Main and Secondary languages.",
+	)
 	return strings.Join(lines, "\r\n")
 }
 
@@ -30,7 +33,7 @@ func formatGenerationSucceeded(context generationLogContext, result generator.Re
 	lines = appendLocalizationOverrides(lines, result.SecondaryLocalizationOverrides)
 	lines = append(lines,
 		fmt.Sprintf("✓ Merged %d main dialogue rows (%d bilingual).", result.Stats.Processed, result.Stats.Bilingual),
-		fmt.Sprintf("✓ Generated %d changed dialogue rows for %d installed localization targets.", result.PatchRows, result.LocalizationTargets),
+		fmt.Sprintf("✓ Generated %d changed dialogue rows for %d selected localization targets.", result.PatchRows, result.LocalizationTargets),
 	)
 	if result.HUDOverride {
 		lines = append(lines, "✓ Custom subtitle appearance prepared from the installed game HUD.")
@@ -41,7 +44,10 @@ func formatGenerationSucceeded(context generationLogContext, result generator.Re
 	if strings.TrimSpace(result.InstallPath) != "" {
 		lines = append(lines, "✓ Installed: "+result.InstallPath)
 	}
-	lines = append(lines, "Restart KCD2 before testing.")
+	lines = append(lines,
+		"Use one of the selected languages as KCD2's text language; regenerate after switching the game to another language.",
+		"Restart KCD2 before testing.",
+	)
 	return strings.Join(lines, "\r\n")
 }
 
