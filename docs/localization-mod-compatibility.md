@@ -30,11 +30,13 @@ GDK is selected from package markers in or next to the selected game root, and t
 
 The Windows GUI displays this resolved path as **Mods folder**. If the user's active mod environment is elsewhere, **Change...** selects an existing custom Mods folder. **Reset** returns to the layout-aware automatic path. A custom selection becomes the single source of truth for source discovery, installation, status, Regenerate, Uninstall and HUD-conflict detection. Selecting a different Game folder clears the custom override so it cannot accidentally carry over to another KCD2 installation.
 
+Custom roots are revalidated when used, not only when selected. A deleted, replaced or otherwise invalid custom path therefore fails instead of silently becoming a different target. Install transactions also record the normalized Mods-root owner. Recovery ignores transactions owned by a sibling Mods environment, and custom-root operations ignore old unowned transaction workspaces from pre-custom-root releases.
+
 ## Active mod order
 
 When `mod_order.txt` is absent, applicable local mod directories are applied in deterministic alphabetical folder order. When `mod_order.txt` exists, it is treated as the active whitelist and explicit order. Entries are matched to the manifest `modid` exactly; folder names are not aliases for mod IDs and case is not normalized into another ID.
 
-Whitelist activation is resolved before localization-PAK validation and before `<supports>` evaluation for an explicit-ID mod. An unlisted mod therefore cannot make generation fail merely because its unused selected-language PAK is malformed/non-regular or because its `<supports>` declaration cannot be evaluated. Once a mod is active for the selected language, its PAK and activation metadata are validated strictly. A repeated active localization-mod ID in `mod_order.txt` fails closed rather than being silently collapsed. A UTF-8 BOM on the first order entry is tolerated.
+Whitelist activation is resolved before localization-PAK validation and before `<supports>` evaluation for an explicit-ID mod. An unlisted mod therefore cannot make generation fail merely because its unused selected-language PAK is malformed/non-regular or because its `<supports>` declaration cannot be evaluated. For a listed/otherwise active mod, the selected-language PAK must first exist before its `<supports>` declaration becomes relevant; unrelated language-only mods therefore do not make generation depend on `system.cfg`. Once a mod is relevant to the selected language, its PAK and activation metadata are validated strictly. A repeated active localization-mod ID in `mod_order.txt` fails closed rather than being silently collapsed. A UTF-8 BOM on the first order entry is tolerated and preserved by install/uninstall normalization.
 
 KCD2 manifest activation is also respected. If an active relevant manifest contains `<supports>`, its version patterns are checked against `wh_sys_version` from the selected game's `system.cfg`; a mod that does not support the current game version is not used as a source. If an active relevant localization mod has `<supports>` but the current game version cannot be determined, generation fails closed rather than guessing whether that mod is active.
 
@@ -46,7 +48,7 @@ Composing a localization mod is useful only if the generated bilingual patch win
 
 If an existing `mod_order.txt` is present, installation transactionally normalizes the project entry so exactly one `kcd_dual_subtitles` entry is the final active entry while preserving the relative order of unrelated entries. This makes the generated patch load after the localization sources it composed.
 
-If `mod_order.txt` is absent, the tool does **not** create it: KCD2 treats an order file as a whitelist, so creating one could disable unrelated local or Workshop mods. In this mode, if a localization source that actually changes the effective dialogue table has a folder that alphabetically loads after `kcd_dual_subtitles`, automatic installation fails closed with a load-order explanation instead of publishing a patch that KCD2 would later overwrite. Chineses Fix's documented `chinesesfixptf` folder sorts before `kcd_dual_subtitles`, so this specific representative layout does not require an order file for that reason.
+If `mod_order.txt` is absent, the tool does **not** create it: KCD2 treats an order file as a whitelist, so creating one could disable unrelated local or Workshop mods. In this mode, every active selected-language localization mod that can write a relevant dialogue ID participates in precedence safety, even if its displayed value happens to equal the already-effective text. If such a mod folder alphabetically loads after `kcd_dual_subtitles`, automatic installation fails closed with a load-order explanation instead of publishing a patch that KCD2 could later overwrite. Chineses Fix's documented `chinesesfixptf` folder sorts before `kcd_dual_subtitles`, so this specific representative layout does not require an order file for that reason.
 
 KCD2 Dual Subtitles excludes its own canonical mod directory and known legacy staging names from source discovery. Regeneration therefore never consumes an older generated bilingual localization as an input.
 
@@ -93,7 +95,7 @@ Warhorse permits multiple generic localization XML files in one language PAK but
 
 Malformed supported XML and case-insensitive duplicate supported resource filenames fail generation with mod/PAK/resource context. Individual supported XML resources are size-limited before parsing so a malformed third-party PAK cannot make generation allocate unbounded memory.
 
-The optional middle XML cell is non-display metadata. A mod is therefore reported as a localization contribution only when it changes displayed dialogue text (or explicitly introduces a new dialogue row), not merely when that source/authoring field differs. A mod that does not contain the selected language PAK, whose PAK contains no supported localization resource, or whose relevant displayed text is identical to the accumulated dialogue table is irrelevant to that language.
+The optional middle XML cell is non-display metadata. A mod is reported in the user-facing applied-localization list only when it changes displayed dialogue text (or explicitly introduces a new dialogue row), not merely when that source/authoring field differs. For runtime precedence, however, any active supported resource that writes a relevant dialogue ID is tracked separately: writing the same single-language text can still overwrite the generated bilingual row if that mod loads later. A mod that does not contain the selected language PAK or whose PAK contains no supported relevant dialogue resource is irrelevant to that language.
 
 ### Semantic scope versus file-format support
 
@@ -158,7 +160,7 @@ Chineses_xml.pak
 
 That XML is approximately 5.25 MiB uncompressed and contains 22,368 three-cell localization rows. It mixes broad UI/quest localization with spoken-dialogue rows, so treating the entire resource as dialogue would be incorrect. It also contains six repeated localization IDs, including repeats with differing values, which is why generic patches use sequential last-occurrence-wins handling within one resource instead of the strict uniqueness rule used for an explicit `text_ui_dialog.xml`.
 
-This inspection validates the current real-world archive/resource shape and parser contract. It does **not** by itself replace an in-game acceptance run: final retail acceptance still needs to prove that the installed stock Chinese dialogue IDs intersect the expected corrections and that KCD2 loads the generated bilingual patch after Chineses Fix.
+Direct comparison with the retail Simplified-Chinese stock dialogue found 18,593 intersecting IDs, of which 17,974 change displayed dialogue text; 3,769 mod IDs are outside stock dialogue and are excluded. The final selected-pair build was then smoke-tested in KCD2 1.5.6 Xbox/GDK: the runtime log showed stock `Chineses_xml.pak`, Chineses Fix, and the generated `kcd_dual_subtitles` localization loading in the required order, and bilingual subtitles worked in game.
 
 ## Scope
 
