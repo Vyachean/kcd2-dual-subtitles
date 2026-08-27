@@ -7,13 +7,14 @@ import (
 )
 
 // InstallVersionedForLanguagesInModsRoot publishes directly into an
-// already-selected Mods root. It is used when the application has an explicit
-// user override and must not resolve a different location from gameRoot.
+// already-selected custom Mods root. Custom-root operations deliberately ignore
+// legacy unowned transaction workspaces because older public releases could
+// only have created those for their layout-resolved automatic Mods root.
 func InstallVersionedForLanguagesInModsRoot(modsRoot string, targetLanguages []localization.Language, rows []localization.DialogueRow, version string) (string, error) {
 	if runtime.GOOS != "windows" {
 		return "", ErrAutomaticInstallUnsupported
 	}
-	return installIntoModsRootVersionedForLanguages(modsRoot, targetLanguages, rows, nil, version, false)
+	return installIntoModsRootVersionedForLanguagesWithLegacyRecovery(modsRoot, targetLanguages, rows, nil, version, false, false)
 }
 
 // InstallVersionedWithHUDForLanguagesInModsRoot is the HUD equivalent of
@@ -23,14 +24,14 @@ func InstallVersionedWithHUDForLanguagesInModsRoot(modsRoot string, targetLangua
 	if runtime.GOOS != "windows" {
 		return "", ErrAutomaticInstallUnsupported
 	}
-	return installIntoModsRootVersionedForLanguages(modsRoot, targetLanguages, rows, hud, version, true)
+	return installIntoModsRootVersionedForLanguagesWithLegacyRecovery(modsRoot, targetLanguages, rows, hud, version, true, false)
 }
 
-// UninstallFromModsRoot removes only this project from an already-selected Mods
-// root. This keeps custom-root uninstall aligned with generation and status.
+// UninstallFromModsRoot removes only this project from an already-selected
+// custom Mods root using the same transaction ownership policy as generation.
 func UninstallFromModsRoot(modsRoot string) (UninstallResult, error) {
 	if runtime.GOOS != "windows" {
 		return UninstallResult{}, ErrAutomaticInstallUnsupported
 	}
-	return uninstallFromModsRoot(modsRoot)
+	return uninstallFromModsRootWithLegacyRecovery(modsRoot, false)
 }
