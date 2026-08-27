@@ -25,6 +25,7 @@ func TestFormatGenerationStartedExplainsInputs(t *testing.T) {
 		`Mods folder: C:\Users\Player\Documents\kingdomcome_mods`,
 		"Mode: game-default appearance",
 		"Reading stock localization and active localization mods",
+		"installed only for the selected Main and Secondary languages",
 	} {
 		if !strings.Contains(log, want) {
 			t.Fatalf("log = %q, want %q", log, want)
@@ -46,7 +47,7 @@ func TestFormatGenerationSucceededShowsCompositionAndInstall(t *testing.T) {
 		},
 		PatchRows:                      170000,
 		HUDOverride:                    true,
-		LocalizationTargets:            16,
+		LocalizationTargets:            2,
 		MainLocalizationOverrides:      []string{"Russian Fix"},
 		SecondaryLocalizationOverrides: []string{"Chineses Fix"},
 		InstallPath:                    `D:\KCD2Mods\kcd_dual_subtitles`,
@@ -60,10 +61,12 @@ func TestFormatGenerationSucceededShowsCompositionAndInstall(t *testing.T) {
 		"stock Chinese (Simplified) localization",
 		"Applied localization mods: Chineses Fix",
 		"Merged 177930 main dialogue rows (170000 bilingual)",
-		"Generated 170000 changed dialogue rows for 16 installed localization targets",
+		"Generated 170000 changed dialogue rows for 2 selected localization targets",
 		"Custom subtitle appearance prepared",
 		"Localization load order verified",
 		`Installed: D:\KCD2Mods\kcd_dual_subtitles`,
+		"Use one of the selected languages as KCD2's text language",
+		"regenerate after switching the game to another language",
 		"Restart KCD2 before testing",
 	} {
 		if !strings.Contains(log, want) {
