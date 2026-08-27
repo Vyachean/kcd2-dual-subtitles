@@ -92,7 +92,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          go build -trimpath -o dist/kcd2-dual-subtitles.exe ./cmd/kcd2-dual-subtitles
+          go build -trimpath -ldflags "-s -w" -o dist/kcd2-dual-subtitles.exe ./cmd/kcd2-dual-subtitles
 
       - name: Smoke-test native GUI entrypoint
         shell: pwsh
