@@ -28,10 +28,15 @@ type Contribution struct {
 }
 
 // Result is the stock dialogue table after active localization overrides have
-// been applied in KCD2 load order.
+// been applied in KCD2 load order. Contributions contains only mods that changed
+// displayed effective dialogue and is suitable for user-facing reporting.
+// DialogueWriters also contains active mods that write relevant dialogue IDs to
+// the same value; generation uses it for runtime load-order safety because such
+// a later single-language write can still overwrite the bilingual patch.
 type Result struct {
-	Rows          []localization.DialogueRow
-	Contributions []Contribution
+	Rows            []localization.DialogueRow
+	Contributions   []Contribution
+	DialogueWriters []Contribution
 }
 
 type modCandidate struct {
@@ -50,6 +55,13 @@ type manifest struct {
 	Supports struct {
 		Versions []string `xml:"version"`
 	} `xml:"supports"`
+}
+
+type manifestIdentity struct {
+	modID    string
+	name     string
+	supports []string
+	active   bool
 }
 
 type localizationResource struct {
@@ -105,19 +117,22 @@ func resolveFromModsRootWithVersion(stockRows []localization.DialogueRow, modsRo
 
 	result := Result{Rows: rows}
 	for _, candidate := range candidates {
-		updated, used, err := overlayLocalizationPAK(result.Rows, candidate.pak, candidate.modID)
+		updated, changed, writesDialogue, err := overlayLocalizationPAK(result.Rows, candidate.pak, candidate.modID)
 		if err != nil {
 			return Result{}, fmt.Errorf("apply localization mod %q (%s): %w", candidateLabel(candidate), candidate.pak, err)
 		}
-		if !used {
-			continue
-		}
 		result.Rows = updated
-		result.Contributions = append(result.Contributions, Contribution{
+		contribution := Contribution{
 			ModID: candidate.modID,
 			Name:  candidate.name,
 			Path:  candidate.path,
-		})
+		}
+		if writesDialogue {
+			result.DialogueWriters = append(result.DialogueWriters, contribution)
+		}
+		if changed {
+			result.Contributions = append(result.Contributions, contribution)
+		}
 	}
 	return result, nil
 }
@@ -158,14 +173,18 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 			continue
 		}
 		dir := filepath.Join(modsRoot, entry.Name())
-		modID, name, active, err := readManifestIdentity(dir, entry.Name(), orderExists, activeOrderIDs, gameVersion, gameVersionErr)
+		identity, err := readManifestIdentity(dir, orderExists, activeOrderIDs)
 		if err != nil {
 			return nil, fmt.Errorf("read localization mod identity from %q: %w", dir, err)
 		}
-		if !active || isProjectOwnedIdentity(entry.Name(), modID) {
+		if !identity.active || isProjectOwnedIdentity(entry.Name(), identity.modID) {
 			continue
 		}
 
+		// Prove that this active mod is relevant to the selected language before
+		// requiring an exact generated identity or evaluating <supports>. A mod
+		// with no selected-language PAK cannot affect this source and must not make
+		// generation depend on unrelated activation metadata.
 		pakPath := filepath.Join(dir, "Localization", pakFilename)
 		info, err := os.Lstat(pakPath)
 		if errors.Is(err, os.ErrNotExist) {
@@ -174,18 +193,29 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 		if err != nil {
 			return nil, fmt.Errorf("inspect active localization PAK %q: %w", pakPath, err)
 		}
-		if orderExists && modID == "" {
+		if orderExists && identity.modID == "" {
 			return nil, fmt.Errorf("localization mod %q has no explicit mod ID required by %s", entry.Name(), modinstall.ModOrderFilename)
 		}
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return nil, fmt.Errorf("active localization PAK is not a regular file: %q", pakPath)
 		}
+		if len(identity.supports) != 0 {
+			if gameVersionErr != nil {
+				return nil, fmt.Errorf("determine current game version for manifest <supports>: %w", gameVersionErr)
+			}
+			if strings.TrimSpace(gameVersion) == "" {
+				return nil, errors.New("determine current game version for manifest <supports>: wh_sys_version is empty")
+			}
+			if !supportsGameVersion(identity.supports, gameVersion) {
+				continue
+			}
+		}
 
 		candidates = append(candidates, modCandidate{
 			folder: entry.Name(),
 			path:   dir,
-			modID:  modID,
-			name:   name,
+			modID:  identity.modID,
+			name:   identity.name,
 			pak:    pakPath,
 		})
 	}
@@ -227,55 +257,42 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 	return ordered, nil
 }
 
-func readManifestIdentity(modDir, folder string, requireModID bool, activeOrderIDs map[string]struct{}, gameVersion string, gameVersionErr error) (modID, name string, active bool, err error) {
+func readManifestIdentity(modDir string, requireModID bool, activeOrderIDs map[string]struct{}) (manifestIdentity, error) {
 	manifestPath := filepath.Join(modDir, "mod.manifest")
 	data, err := os.ReadFile(manifestPath)
 	if errors.Is(err, os.ErrNotExist) {
-		return "", "", false, nil
+		return manifestIdentity{}, nil
 	}
 	if err != nil {
-		return "", "", false, err
+		return manifestIdentity{}, err
 	}
 	var parsed manifest
 	if err := xml.Unmarshal(data, &parsed); err != nil {
 		// KCD2 requires a valid mod.manifest for a local folder to function
 		// properly. Invalid XML cannot be reproduced as an active source.
-		return "", "", false, nil
+		return manifestIdentity{}, nil
 	}
-	modID = strings.TrimSpace(parsed.Info.ModID)
-	name = strings.TrimSpace(parsed.Info.Name)
-	if modID == "" && name == "" {
-		return "", "", false, nil
+	identity := manifestIdentity{
+		modID:    strings.TrimSpace(parsed.Info.ModID),
+		name:     strings.TrimSpace(parsed.Info.Name),
+		supports: append([]string(nil), parsed.Supports.Versions...),
 	}
-	if modID != "" && !validModID(modID) {
-		return "", "", false, nil
+	if identity.modID == "" && identity.name == "" {
+		return manifestIdentity{}, nil
 	}
-	if requireModID {
-		if modID == "" {
-			// KCD2 can generate an ID from <name>, but its normalization is not
-			// documented. Defer the fail-closed decision until the caller proves
-			// this mod actually contains the selected language PAK.
-			return "", name, true, nil
-		}
-		if _, listed := activeOrderIDs[modID]; !listed {
-			return modID, name, false, nil
+	if identity.modID != "" && !validModID(identity.modID) {
+		return manifestIdentity{}, nil
+	}
+	if requireModID && identity.modID != "" {
+		if _, listed := activeOrderIDs[identity.modID]; !listed {
+			return manifestIdentity{modID: identity.modID, name: identity.name}, nil
 		}
 	}
-	if len(parsed.Supports.Versions) != 0 {
-		if gameVersionErr != nil {
-			return "", "", false, fmt.Errorf("determine current game version for manifest <supports>: %w", gameVersionErr)
-		}
-		if strings.TrimSpace(gameVersion) == "" {
-			return "", "", false, errors.New("determine current game version for manifest <supports>: wh_sys_version is empty")
-		}
-		if !supportsGameVersion(parsed.Supports.Versions, gameVersion) {
-			return "", "", false, nil
-		}
+	if identity.name == "" {
+		identity.name = identity.modID
 	}
-	if name == "" {
-		name = modID
-	}
-	return modID, name, true, nil
+	identity.active = true
+	return identity, nil
 }
 
 func validModID(modID string) bool {
@@ -394,19 +411,19 @@ func readModOrder(modsRoot string) ([]string, bool, error) {
 	return order, true, nil
 }
 
-func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID string) ([]localization.DialogueRow, bool, error) {
+func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID string) ([]localization.DialogueRow, bool, bool, error) {
 	reader, err := zip.OpenReader(pakPath)
 	if err != nil {
-		return nil, false, fmt.Errorf("open localization PAK: %w", err)
+		return nil, false, false, fmt.Errorf("open localization PAK: %w", err)
 	}
 	defer reader.Close()
 
 	resources, err := supportedLocalizationResources(reader.File, modID)
 	if err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
 	if len(resources) == 0 {
-		return base, false, nil
+		return base, false, false, nil
 	}
 
 	rows := append([]localization.DialogueRow(nil), base...)
@@ -415,22 +432,26 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID stri
 		index[row.ID] = i
 	}
 	genericValues := make(map[string]genericDialogueValue)
+	writesDialogue := false
 
 	for _, resource := range resources {
 		data, err := readZipEntry(resource.file)
 		if err != nil {
-			return nil, false, fmt.Errorf("read %q: %w", resource.file.Name, err)
+			return nil, false, false, fmt.Errorf("read %q: %w", resource.file.Name, err)
 		}
 		patchRows, err := parseLocalizationResource(data, resource.dialogue)
 		if err != nil {
-			return nil, false, fmt.Errorf("parse %q: %w", resource.file.Name, err)
+			return nil, false, false, fmt.Errorf("parse %q: %w", resource.file.Name, err)
 		}
 
 		if resource.dialogue {
 			// An explicit dialogue table can introduce new dialogue IDs. Duplicate
 			// IDs there are ambiguous and rejected.
 			if err := requireUniqueIDs(patchRows); err != nil {
-				return nil, false, fmt.Errorf("validate %q: %w", resource.file.Name, err)
+				return nil, false, false, fmt.Errorf("validate %q: %w", resource.file.Name, err)
+			}
+			if len(patchRows) != 0 {
+				writesDialogue = true
 			}
 			for _, row := range patchRows {
 				if i, ok := index[row.ID]; ok {
@@ -454,6 +475,9 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID stri
 				finalRows[row.ID] = row
 			}
 		}
+		if len(finalRows) != 0 {
+			writesDialogue = true
+		}
 		ids := make([]string, 0, len(finalRows))
 		for id := range finalRows {
 			ids = append(ids, id)
@@ -463,7 +487,7 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID stri
 		for _, id := range ids {
 			row := finalRows[id]
 			if previous, seen := genericValues[id]; seen && previous.text != row.Text {
-				return nil, false, fmt.Errorf(
+				return nil, false, false, fmt.Errorf(
 					"dialogue ID %q has conflicting values in generic localization resources %q and %q; KCD2 cross-resource override order is undocumented",
 					id,
 					previous.resource,
@@ -482,7 +506,7 @@ func overlayLocalizationPAK(base []localization.DialogueRow, pakPath, modID stri
 			}
 		}
 	}
-	return rows, !dialogueRowsEqual(base, rows), nil
+	return rows, !dialogueRowsEqual(base, rows), writesDialogue, nil
 }
 
 func supportedLocalizationResources(files []*zip.File, modID string) ([]localizationResource, error) {
