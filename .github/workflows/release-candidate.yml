@@ -106,7 +106,7 @@ jobs:
           $tag = $Matches[1]
 
           New-Item -ItemType Directory -Force dist | Out-Null
-          go build -trimpath -ldflags "-X main.version=$tag" -o dist/kcd2-dual-subtitles.exe ./cmd/kcd2-dual-subtitles
+          go build -trimpath -ldflags "-s -w -X main.version=$tag" -o dist/kcd2-dual-subtitles.exe ./cmd/kcd2-dual-subtitles
 
           $reportedVersion = (& .\dist\kcd2-dual-subtitles.exe --version).Trim()
           $expectedVersion = "kcd2-dual-subtitles $tag"
