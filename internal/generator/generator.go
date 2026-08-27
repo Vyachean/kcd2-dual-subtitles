@@ -172,7 +172,7 @@ func Generate(request Request) (Result, error) {
 		return result, nil
 	}
 
-	if err := validateAutomaticLocalizationPrecedence(request, mainSource.Contributions, secondarySource.Contributions); err != nil {
+	if err := validateAutomaticLocalizationPrecedence(request, mainSource.DialogueWriters, secondarySource.DialogueWriters); err != nil {
 		return Result{}, fmt.Errorf("validate localization load order: %w", err)
 	}
 	installPath, err := installGeneratedMod(request, targetLanguages, patchRows, derivedHUD, version, result.HUDOverride)
