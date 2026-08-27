@@ -19,13 +19,15 @@ type UninstallResult struct {
 }
 
 // UninstallForGameRoot resolves the same target used by automatic installation
-// and removes only this tool's mod and load-order entry there.
+// and removes only this tool's mod and load-order entry there. Legacy unowned
+// transaction recovery remains enabled because older releases used only these
+// layout-resolved roots.
 func UninstallForGameRoot(gameRoot string) (UninstallResult, error) {
 	location, err := ResolveInstallLocation(gameRoot)
 	if err != nil {
 		return UninstallResult{}, err
 	}
-	return uninstallFromModsRoot(location.ModsRoot)
+	return uninstallFromModsRootWithLegacyRecovery(location.ModsRoot, true)
 }
 
 // Documents-specific uninstall remains only for focused GDK filesystem tests.
@@ -33,10 +35,14 @@ func uninstallFromDocuments(documents string) (UninstallResult, error) {
 	if documents == "" {
 		return UninstallResult{}, errors.New("Documents path is empty")
 	}
-	return uninstallFromModsRoot(filepath.Join(documents, ModsDirectoryName))
+	return uninstallFromModsRootWithLegacyRecovery(filepath.Join(documents, ModsDirectoryName), true)
 }
 
 func uninstallFromModsRoot(modsRoot string) (UninstallResult, error) {
+	return uninstallFromModsRootWithLegacyRecovery(modsRoot, true)
+}
+
+func uninstallFromModsRootWithLegacyRecovery(modsRoot string, recoverLegacyTransactions bool) (UninstallResult, error) {
 	modsRoot = strings.TrimSpace(modsRoot)
 	if modsRoot == "" {
 		return UninstallResult{}, errors.New("KCD2 mod root is empty")
@@ -51,7 +57,7 @@ func uninstallFromModsRoot(modsRoot string) (UninstallResult, error) {
 	// Resolve an interrupted Generate/Regenerate transaction before uninstalling.
 	// Otherwise an old installation parked in the transaction workspace could be
 	// restored by a later run after the user had explicitly uninstalled the mod.
-	if err := recoverInstallTransactions(modsRoot); err != nil {
+	if err := recoverInstallTransactionsWithLegacy(modsRoot, recoverLegacyTransactions); err != nil {
 		return UninstallResult{}, err
 	}
 	if rootInfo, err := os.Stat(modsRoot); err == nil {
@@ -196,15 +202,24 @@ func removeModOrderEntries(data []byte, modID string) ([]byte, bool) {
 		return append([]byte(nil), data...), false
 	}
 
+	hasBOM := bytes.HasPrefix(data, utf8BOM)
+	body := data
+	if hasBOM {
+		body = data[len(utf8BOM):]
+	}
+
 	var output bytes.Buffer
+	if hasBOM {
+		_, _ = output.Write(utf8BOM)
+	}
 	changed := false
-	for start := 0; start < len(data); {
-		lineEnd := bytes.IndexByte(data[start:], '\n')
-		end := len(data)
+	for start := 0; start < len(body); {
+		lineEnd := bytes.IndexByte(body[start:], '\n')
+		end := len(body)
 		if lineEnd >= 0 {
 			end = start + lineEnd + 1
 		}
-		segment := data[start:end]
+		segment := body[start:end]
 		content := segment
 		if len(content) > 0 && content[len(content)-1] == '\n' {
 			content = content[:len(content)-1]
