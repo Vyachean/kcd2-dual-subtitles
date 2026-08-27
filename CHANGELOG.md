@@ -2,6 +2,20 @@
 
 All notable stable-release changes are recorded here. Release candidates are development history and are not listed individually.
 
+## [v0.3.6] - 2026-08-27
+
+Distribution-hardening release. Runtime subtitle generation, localization compatibility, HUD transformation and installation behavior are unchanged from v0.3.5.
+
+### Changed
+
+- Stable and release-candidate Windows executables are now linked with Go's standard `-s -w` flags so distributed binaries omit symbol-table and DWARF debug metadata.
+- Release binaries continue to use `-trimpath`, retain the embedded release version and pass the existing native Windows GUI startup smoke test before publication.
+
+### Notes
+
+- A stripped v0.3.5 comparison build removed the CAPE sandbox packing/entropy signatures produced by the original Go debug sections while remaining clean in VirusTotal. v0.3.6 adopts the same linker settings for normal release builds.
+- This is a packaging/build-only change; application behavior and generated KCD2 mod content are unchanged.
+
 ## [v0.3.5] - 2026-08-27
 
 Localization-mod compatibility and generation-transparency release.
@@ -177,6 +191,7 @@ Initial stable localization-only release.
 - CLI generation and acceptance canary support.
 - Retail validation on KCD2 1.5.6 Xbox / Microsoft Store PC.
 
+[v0.3.6]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.6
 [v0.3.5]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.5
 [v0.3.4]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.4
 [v0.3.3]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.3
