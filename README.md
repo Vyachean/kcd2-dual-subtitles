@@ -62,7 +62,7 @@ The tool currently recognizes the known KCD2 PC localization PAK set and shows o
 - Ukrainian
 - Vietnamese
 
-At least two supported installed languages are required. No particular language pair is mandatory, and the game's own interface language does not have to match either selected subtitle language.
+At least two supported installed languages are required. No particular language pair is mandatory. The game's active text/interface language must be one of the selected Main/Secondary languages; after switching KCD2 to a third language, Regenerate with that language selected.
 
 ## Compatibility
 
@@ -90,6 +90,7 @@ Styled mode therefore needs to supply `Libs/UI/hud.gfx`. If another installed mo
 ## Known limitations
 
 - the language pair is selected at generation time; there is no in-game secondary-language switch yet;
+- the generated localization patch is emitted only for the selected Main and Secondary language slots; switching KCD2 to a third text/interface language requires Regenerate with that language selected;
 - standalone narrative/cinematic captions routed separately from the proven standard/bubble subtitle paths may remain single-language or unstyled;
 - subtitle-source composition is limited to dialogue localization; items, quests, tutorials, codex and general UI text are outside the current scope;
 - new dialogue introduced only by another mod's generic localization patch is not automatically classified as dialogue; safe support would require following that content mod's dialogue references rather than treating all new localization IDs as subtitles;
@@ -143,11 +144,11 @@ The derived HUD path is generated from the user's installed `hud.gfx`; the proje
 
 Unknown future localization PAK names are ignored rather than guessed.
 
-### Game language is independent from the selected pair
+### Game language must use one selected slot
 
-Main and Secondary are **subtitle text sources**, not the language slot that KCD2 must currently be using.
+Main and Secondary are both the subtitle text sources and the only localization slots written by the generator.
 
-The generated localization patch is written under every supported localization PAK present in the selected installation. For example, a Czech + German subtitle pair continues to work while KCD2 itself is configured to use English text.
+For example, a Czech + German pair produces `Czech_xml.pak` and `German_xml.pak` only. KCD2 must currently use Czech or German text for the generated patch to load. This avoids duplicating the same large bilingual localization payload under every installed language. If KCD2 is switched to English or another third language, Regenerate with that language selected as either Main or Secondary.
 
 ### Localization correction mods
 
@@ -209,9 +210,8 @@ A styled installation has the following shape beneath the selected `kcd_dual_sub
 kcd_dual_subtitles\
 ├── mod.manifest
 ├── Localization\
-│   ├── English_xml.pak
-│   ├── German_xml.pak
-│   └── ... one generated patch PAK for each supported installed language slot
+│   ├── <Main>_xml.pak
+│   └── <Secondary>_xml.pak
 └── Data\
     └── kcd_dual_subtitles.pak
         └── Libs/UI/hud.gfx
