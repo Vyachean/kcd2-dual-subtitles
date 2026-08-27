@@ -101,13 +101,14 @@ func TestFormatGenerationFailedKeepsInputsAndErrorWithoutSuccessClaims(t *testin
 		"Main: Russian",
 		"Secondary: English",
 		"another installed mod overrides Libs/UI/hud.gfx",
-		"No successful replacement was published",
+		"Generation did not complete successfully",
+		"recovered by the next install or uninstall operation",
 	} {
 		if !strings.Contains(log, want) {
 			t.Fatalf("log = %q, want %q", log, want)
 		}
 	}
-	if strings.Contains(log, "Localization load order verified") || strings.Contains(log, "Installed:") {
-		t.Fatalf("failure log contains success claim: %q", log)
+	if strings.Contains(log, "Localization load order verified") || strings.Contains(log, "Installed:") || strings.Contains(log, "No successful replacement was published") {
+		t.Fatalf("failure log contains stale or successful publication claim: %q", log)
 	}
 }
