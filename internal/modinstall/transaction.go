@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
@@ -14,6 +15,7 @@ const (
 	installTransactionPrefix        = ".kcd2-dual-subtitles-install-"
 	transactionStateMarkerPrefix    = "state-"
 	transactionHadPreviousMarker    = "had-previous"
+	transactionModsRootMarker       = "mods-root"
 	transactionStagedDirname        = "staged"
 	transactionPreviousName         = "previous"
 	transactionModOrderNextName     = "mod_order.next"
@@ -33,6 +35,10 @@ type installTransaction struct {
 }
 
 func beginInstallTransaction(modsRoot string) (*installTransaction, error) {
+	owner, err := normalizeModsRootIdentity(modsRoot)
+	if err != nil {
+		return nil, err
+	}
 	parent := filepath.Dir(filepath.Clean(modsRoot))
 	root, err := os.MkdirTemp(parent, installTransactionPrefix+"*")
 	if err != nil {
@@ -44,6 +50,13 @@ func beginInstallTransaction(modsRoot string) (*installTransaction, error) {
 		previous:         filepath.Join(root, transactionPreviousName),
 		modOrderNext:     filepath.Join(root, transactionModOrderNextName),
 		modOrderPrevious: filepath.Join(root, transactionModOrderPreviousName),
+	}
+	// Record ownership before any recoverable state is created. Custom Mods roots
+	// can be siblings of the automatic root, so a generic sibling transaction
+	// name alone is not enough to decide which target recovery may modify.
+	if err := tx.publishMarker(transactionModsRootMarker, owner+"\n"); err != nil {
+		_ = os.RemoveAll(root)
+		return nil, fmt.Errorf("record install transaction Mods root: %w", err)
 	}
 	if err := os.Mkdir(tx.staged, 0o755); err != nil {
 		_ = os.RemoveAll(root)
@@ -263,6 +276,19 @@ func restoreInterruptedModOrder(modsRoot, previous string) error {
 }
 
 func recoverInstallTransactions(modsRoot string) error {
+	return recoverInstallTransactionsWithLegacy(modsRoot, true)
+}
+
+// recoverInstallTransactionsWithLegacy recovers only transactions owned by the
+// requested Mods root. Older transactions created before root ownership was
+// recorded can be recovered for layout-resolved legacy paths, but custom-root
+// callers disable that fallback so a stale automatic transaction beside a new
+// custom root can never mutate the custom installation.
+func recoverInstallTransactionsWithLegacy(modsRoot string, recoverLegacy bool) error {
+	modsRootIdentity, err := normalizeModsRootIdentity(modsRoot)
+	if err != nil {
+		return err
+	}
 	modsRoot = filepath.Clean(modsRoot)
 	parent := filepath.Dir(modsRoot)
 	entries, err := os.ReadDir(parent)
@@ -284,11 +310,61 @@ func recoverInstallTransactions(modsRoot string) error {
 		if !info.IsDir() {
 			return fmt.Errorf("refusing to recover non-directory install transaction %q", root)
 		}
+
+		owned, matches, err := installTransactionOwnership(root, modsRootIdentity)
+		if err != nil {
+			return err
+		}
+		if owned && !matches {
+			continue
+		}
+		if !owned && !recoverLegacy {
+			continue
+		}
 		if err := recoverInstallTransaction(modsRoot, root); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func normalizeModsRootIdentity(modsRoot string) (string, error) {
+	modsRoot = strings.TrimSpace(modsRoot)
+	if modsRoot == "" {
+		return "", errors.New("KCD2 mod root is empty")
+	}
+	absolute, err := filepath.Abs(modsRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve absolute Mods root %q: %w", modsRoot, err)
+	}
+	return filepath.Clean(absolute), nil
+}
+
+func installTransactionOwnership(root, modsRootIdentity string) (owned, matches bool, err error) {
+	markerPath := filepath.Join(root, transactionModsRootMarker)
+	info, err := os.Lstat(markerPath)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return false, false, nil
+	case err != nil:
+		return false, false, fmt.Errorf("inspect install transaction owner %q: %w", markerPath, err)
+	case info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular():
+		return false, false, fmt.Errorf("invalid install transaction owner marker %q", markerPath)
+	case info.Size() > 4096:
+		return false, false, fmt.Errorf("install transaction owner marker is unexpectedly large: %q", markerPath)
+	}
+	data, err := os.ReadFile(markerPath)
+	if err != nil {
+		return false, false, fmt.Errorf("read install transaction owner %q: %w", markerPath, err)
+	}
+	owner, err := normalizeModsRootIdentity(string(data))
+	if err != nil {
+		return false, false, fmt.Errorf("parse install transaction owner %q: %w", markerPath, err)
+	}
+	if runtime.GOOS == "windows" {
+		return true, strings.EqualFold(owner, modsRootIdentity), nil
+	}
+	return true, owner == modsRootIdentity, nil
 }
 
 func recoverInstallTransaction(modsRoot, root string) error {

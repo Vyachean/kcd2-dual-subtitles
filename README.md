@@ -15,7 +15,8 @@ It reads localization and HUD data from the installed game, does not redistribut
 - optional language tags;
 - optional per-line color, size and italic styling;
 - optional outline and shadow for readability;
-- automatic installation to the correct mod location for the selected game installation;
+- automatic Mods-folder resolution for the selected game installation, with the resolved path shown in the GUI and an explicit **Change... / Reset** override when needed;
+- active local localization/correction mods from that selected Mods folder are incorporated into the Main and Secondary dialogue sources;
 - **Regenerate** after KCD2 updates instead of waiting for a prebuilt localization patch;
 - crash-safe replacement: interrupted generation is recovered before the next install/uninstall operation;
 - safe **Uninstall** that removes only this project's files and load-order entry;
@@ -26,16 +27,17 @@ It reads localization and HUD data from the installed game, does not redistribut
 1. Download the latest `kcd2-dual-subtitles-vX.Y.Z-windows-x64.zip` release and extract it anywhere.
 2. Run `kcd2-dual-subtitles.exe`.
 3. If KCD2 is not detected automatically, use **Browse...** and select the game installation.
-4. Select the **Main** and **Secondary** subtitle languages.
-5. Configure subtitle appearance if desired.
-6. Click **Generate**.
-7. Start Kingdom Come: Deliverance II normally.
+4. Check the displayed **Mods folder**. If it is not the mod location used by your installation/setup, click **Change...** and select the active folder; **Reset** returns to automatic detection.
+5. Select the **Main** and **Secondary** subtitle languages.
+6. Configure subtitle appearance if desired.
+7. Click **Generate**.
+8. Start Kingdom Come: Deliverance II normally.
 
 The tool is a standalone generator and installer. Do not copy the executable itself into the game's `Mods` directory, and do not install the executable through a mod manager.
 
 ## Regenerate after KCD2 updates
 
-The generator reads the localization and HUD assets currently installed with the game each time it runs. After KCD2 is updated, fully close the game, run the application again and click **Regenerate**, then restart KCD2.
+The generator reads the localization and HUD assets currently installed with the game each time it runs, including compatible active local localization/correction mods from the displayed Mods folder. After KCD2 or one of those localization mods is updated, fully close the game, run the application again and click **Regenerate**, then restart KCD2.
 
 Generation and replacement are transactional. A failed or interrupted build is not reported as a successful new installation, and the previous installed version is preserved or recovered when possible.
 
@@ -60,13 +62,15 @@ The tool currently recognizes the known KCD2 PC localization PAK set and shows o
 - Ukrainian
 - Vietnamese
 
-At least two supported installed languages are required. No particular language pair is mandatory, and the game's own interface language does not have to match either selected subtitle language.
+At least two supported installed languages are required. No particular language pair is mandatory. The game's active text/interface language must be one of the selected Main/Secondary languages; after switching KCD2 to a third language, Regenerate with that language selected.
 
 ## Compatibility
 
 The application is **store-neutral**. Compatibility is determined by the KCD2 game-file layout, not by whether the game came from Steam, GOG, Epic Games Store, Xbox / Microsoft Store, or another Windows distribution.
 
 Automatic discovery currently looks for Microsoft GDK/Xbox installations, Steam libraries, Epic Games Store installed-game manifests and GOG/Galaxy metadata/default library locations. Every detected candidate still passes the same structural KCD2 validation before it can be selected. **Browse...** remains available for compatible installations that automatic discovery misses.
+
+For each selected subtitle language, the stock game localization remains the base/fallback and compatible active localization mods from the **displayed Mods folder** are applied on top. Without `mod_order.txt`, local mods follow KCD2's alphabetical folder order; when `mod_order.txt` exists, its whitelist and explicit order are respected. Installation keeps `kcd_dual_subtitles` as the final active entry of an existing order file so the generated bilingual patch loads after the localization sources it composed. The tool does not create `mod_order.txt` when it is absent; if alphabetical load order would let a contributing localization mod overwrite the generated patch, automatic installation fails with an explanation instead of creating a new whitelist. Steam Workshop content is not separately discovered by this feature unless it is also present through the selected local-mod layout.
 
 The v0.3 retail test cycle was performed on **Kingdom Come: Deliverance II 1.5.6, Xbox / Microsoft Store PC**. Other compatible Windows storefront builds are supported by the same file-layout rules but have not all been separately retail-tested by this project.
 
@@ -81,17 +85,19 @@ With appearance customization disabled, the tool uses a simple tagged bilingual 
 
 With appearance customization enabled, the generator derives a bilingual HUD from the user's installed `hud.gfx`. Main and Secondary lines can be styled independently for color, size and italic treatment, with common outline and shadow options.
 
-Styled mode therefore needs to supply `Libs/UI/hud.gfx`. If another installed mod also replaces that HUD file, KCD2 Dual Subtitles fails closed instead of silently overwriting or combining an unknown foreign HUD. Remove the conflict or use the non-styled tagged mode.
+Styled mode therefore needs to supply `Libs/UI/hud.gfx`. If another installed mod also replaces that HUD file in the selected Mods folder, KCD2 Dual Subtitles fails closed instead of silently overwriting or combining an unknown foreign HUD. Remove the conflict or use the non-styled tagged mode.
 
 ## Known limitations
 
 - the language pair is selected at generation time; there is no in-game secondary-language switch yet;
+- the generated localization patch is emitted only for the selected Main and Secondary language slots; switching KCD2 to a third text/interface language requires Regenerate with that language selected;
 - standalone narrative/cinematic captions routed separately from the proven standard/bubble subtitle paths may remain single-language or unstyled;
-- dialogue localization comes from `text_ui_dialog.xml`; items, quests, tutorials, codex and general UI text are outside the current scope;
-- automatic discovery is best-effort and can still miss unusual/custom library layouts, so **Browse...** may be required;
+- subtitle-source composition is limited to dialogue localization; items, quests, tutorials, codex and general UI text are outside the current scope;
+- new dialogue introduced only by another mod's generic localization patch is not automatically classified as dialogue; safe support would require following that content mod's dialogue references rather than treating all new localization IDs as subtitles;
+- automatic game and Mods-folder discovery is best-effort, but both can be reviewed in the GUI and the Mods folder can be overridden explicitly;
 - not every Windows storefront build has been separately retail-tested even though compatibility and installation targeting are store-neutral;
 - the executable is not Authenticode-signed;
-- there is no application self-update or persisted presentation profile.
+- there is no application self-update or persisted presentation/Mods-folder profile.
 
 ## Windows SmartScreen
 
@@ -122,11 +128,13 @@ Run or double-click:
 kcd2-dual-subtitles.exe
 ```
 
-The native Win32 application provides best-effort KCD2 autodetection, `Browse...`, Main and Secondary selectors, optional styled presentation, Generate / Regenerate, Uninstall, operation status and native error messages.
+The native Win32 application provides best-effort KCD2 autodetection, Game-folder `Browse...`, a visible **Mods folder** with **Change... / Reset**, Main and Secondary selectors, optional styled presentation, Generate / Regenerate, Uninstall, operation status and native error messages.
+
+The Mods-folder field is read-only so displayed state cannot drift from backend state. **Change...** validates and selects an existing custom directory; **Reset** restores the layout-aware automatic location. Source discovery, installation, status, Regenerate, Uninstall, HUD-conflict scanning and `mod_order.txt` all use this one selected Mods folder. Selecting a different Game folder clears a previous custom Mods-folder override.
 
 When no previous valid selection is available, the GUI prefers **English as Main** when installed and chooses the first other installed supported language as Secondary. It never silently selects the same language twice.
 
-Generate/Regenerate runs outside the Win32 UI thread. The window remains responsive during generation, while controls that could change the captured game/language/presentation selection stay disabled until the operation finishes. Closing during an active generation asks for confirmation.
+Generate/Regenerate runs outside the Win32 UI thread. The window remains responsive during generation, while controls that could change the captured game/Mods/language/presentation selection stay disabled until the operation finishes. Closing during an active generation asks for confirmation.
 
 ### Styled subtitle details
 
@@ -136,11 +144,25 @@ The derived HUD path is generated from the user's installed `hud.gfx`; the proje
 
 Unknown future localization PAK names are ignored rather than guessed.
 
-### Game language is independent from the selected pair
+### Game language must use one selected slot
 
-Main and Secondary are **subtitle text sources**, not the language slot that KCD2 must currently be using.
+Main and Secondary are both the subtitle text sources and the only localization slots written by the generator.
 
-The generated localization patch is written under every supported localization PAK present in the selected installation. For example, a Czech + German subtitle pair continues to work while KCD2 itself is configured to use English text.
+For example, a Czech + German pair produces `Czech_xml.pak` and `German_xml.pak` only. KCD2 must currently use Czech or German text for the generated patch to load. This avoids duplicating the same large bilingual localization payload under every installed language. If KCD2 is switched to English or another third language, Regenerate with that language selected as either Main or Secondary.
+
+### Localization correction mods
+
+For each Main/Secondary language, generation starts with the stock `Localization/<language>_xml.pak` and then composes compatible dialogue overrides from active local mods in the selected KCD2 Mods folder. The same KCD2 order rules are used: alphabetical local-mod folder order by default, or the `mod_order.txt` whitelist/order when that file exists.
+
+Warhorse documents text localization resources inside `<language>_xml.pak` as any number of XML tables named `<anything>_<modid>.xml`; `text__<modid>.xml` and `text_ui__<modid>.xml` are only examples, not exclusive prefixes. The first cell is `stringId`, the final cell is displayed text, and the middle source/authoring cell is optional and not loaded. Generic resources therefore accept both two-cell (`ID`, `text`) and three-cell (`ID`, `source`, `text`) rows. The resolver follows the general filename suffix contract case-insensitively when the manifest provides an explicit `modid`. The inspected Chineses Fix 20260727 archive uses three-cell rows in `text__chinesesfixptf.xml`. A root-level `text_ui_dialog.xml` remains supported as an explicit dialogue-table replacement/overlay and is intentionally parsed with the stricter three-cell dialogue schema.
+
+Generic localization patches are restricted to IDs already known to the effective dialogue table so unrelated UI/items/quest localization is not accidentally treated as subtitle dialogue. Explicit `text_ui_dialog.xml` tables may introduce new dialogue IDs and must have unique IDs. Generic localization patches may repeat keys inside one resource; the last occurrence of an already-known dialogue ID in that resource wins. If two separate generic resources assign different displayed text to the same known dialogue ID, generation fails closed because Warhorse does not document a cross-resource winner. Supported resource filenames are case-folded for ambiguity detection, malformed XML fails with source context, and XML reads are size-limited before parsing.
+
+When `mod_order.txt` exists, entries are matched to explicit manifest `modid` values exactly and unlisted explicit-ID mods are excluded before their localization PAK or `<supports>` declaration can affect generation. A repeated active localization-mod ID fails closed. A manifest without an explicit `modid` can still participate when `mod_order.txt` is absent: the game's exact auto-generated ID normalization is undocumented, so the resolver accepts the documented syntactic generic-localization shape while retaining the known-dialogue-only filter. With an explicit order file, a missing manifest ID fails closed only when that mod actually contains the selected-language localization PAK and exact identity is required.
+
+A mod is reported as a contribution only when its complete supported-resource stack changes displayed effective dialogue; a difference only in the optional source/authoring cell is ignored. Source composition inspects the matching PAK for the selected installed source language. Warhorse mentions an English fallback when a user selects a language they do not have, but the available documentation does not define enough cross-language override precedence to safely apply an English correction PAK over another installed stock language, so this tool does not guess that behavior.
+
+The project's own installed localization and known legacy staging residue are excluded from source discovery so Regenerate cannot consume previously generated bilingual text. See [`docs/localization-mod-compatibility.md`](docs/localization-mod-compatibility.md) for the detailed official filename contract, inspected Chineses Fix archive metadata and compatibility rationale.
 
 ### Game folder selection
 
@@ -160,37 +182,36 @@ or:
 C:\XboxGames\Kingdom Come- Deliverance II\Content
 ```
 
-The normalized selected root is accepted solely by its KCD2 structure. There is no Steam/GOG/Epic/Xbox generation mode switch.
+The normalized selected root is accepted solely by its KCD2 structure. There is no Steam/GOG/Epic/Xbox generation mode switch. Selecting a different normalized game root intentionally clears any custom Mods-folder override so a directory from one installation cannot silently carry into another.
 
-### Automatic installation target
+### Mods folder and installation target
 
-The selected game installation is also the source of truth for **where the mod is installed**. The application resolves one mod root and uses that same root for installation, HUD-conflict detection, `mod_order.txt`, Regenerate status and Uninstall.
+The selected game installation supplies the default Mods folder, but the GUI makes the resolved path visible and allows an explicit existing-directory override. Whichever path is displayed is the source of truth for **where local mods are read and where KCD2 Dual Subtitles is installed**.
 
-For the normal PC KCD2 layout used by Steam/GOG/Epic and compatible distributions:
+For the normal PC KCD2 layout used by Steam/GOG/Epic and compatible distributions, the automatic path is:
 
 ```text
 <game-root>\Mods\kcd_dual_subtitles\
 ```
 
-For Microsoft GDK/Xbox packaged installations:
+For Microsoft GDK/Xbox packaged installations, the automatic path is:
 
 ```text
 <Documents>\kingdomcome_mods\kcd_dual_subtitles\
 ```
 
-GDK handling is selected from package artifacts in or next to the selected installation (`gamelaunchhelper.exe`, `MicrosoftGame.config`, or `appxmanifest.xml`), not from an `XboxGames` path name. A custom library location therefore does not change the rule.
+GDK handling is selected from package artifacts in or next to the selected installation (`gamelaunchhelper.exe`, `MicrosoftGame.config`, or `appxmanifest.xml`), not from an `XboxGames` path name. A custom library location therefore does not change the rule, and the GUI override covers setups whose active Mods directory intentionally differs from the automatically resolved one.
 
-The GDK Documents path is resolved through the real Windows **Documents Known Folder**, so redirected and OneDrive-backed Documents folders are supported. Publication uses a same-volume transaction workspace beside the resolved mod root rather than a directory inside KCD2's scanned mod root; bounded rename retries and the guarded copy fallback remain available for cloud-backed filesystem failures.
+The GDK Documents path is resolved through the real Windows **Documents Known Folder**, so redirected and OneDrive-backed Documents folders are supported. Publication uses a same-volume transaction workspace beside the selected mod root rather than a directory inside KCD2's scanned mod root; bounded rename retries and the guarded copy fallback remain available for cloud-backed filesystem failures.
 
-A styled installation has the following shape beneath the resolved `kcd_dual_subtitles` directory:
+A styled installation has the following shape beneath the selected `kcd_dual_subtitles` directory:
 
 ```text
 kcd_dual_subtitles\
 ├── mod.manifest
 ├── Localization\
-│   ├── English_xml.pak
-│   ├── German_xml.pak
-│   └── ... one generated patch PAK for each supported installed language slot
+│   ├── <Main>_xml.pak
+│   └── <Secondary>_xml.pak
 └── Data\
     └── kcd_dual_subtitles.pak
         └── Libs/UI/hud.gfx
@@ -204,9 +225,11 @@ The original KCD2 files are never overwritten.
 
 ### `mod_order.txt`
 
-If `mod_order.txt` already exists in the resolved mod root, installation ensures `kcd_dual_subtitles` is present while preserving unrelated entries and their order.
+If `mod_order.txt` already exists in the selected Mods folder, installation ensures exactly one `kcd_dual_subtitles` entry is the **final active entry** while preserving the relative order of unrelated entries. The order-file change is part of the same crash-safe install transaction as the generated mod directory.
 
-That means the file is checked at either:
+This final position matters when localization/correction mods are used as sources: the generated bilingual patch must load after them or a later source mod could replace a bilingual row with its single-language value again.
+
+For automatic layouts the file is therefore checked at either:
 
 ```text
 <game-root>\Mods\mod_order.txt
@@ -218,7 +241,9 @@ or, for GDK:
 <Documents>\kingdomcome_mods\mod_order.txt
 ```
 
-The tool does not create `mod_order.txt` when it is absent.
+A custom GUI Mods folder uses its own `mod_order.txt` instead.
+
+The tool does **not** create `mod_order.txt` when it is absent because KCD2 treats the file as a whitelist. In alphabetical mode, if a localization mod that actually contributes effective dialogue sorts after the `kcd_dual_subtitles` folder, automatic installation fails closed and explains the load-order conflict rather than creating a whitelist that could disable unrelated mods.
 
 ### Transaction and recovery model
 
@@ -228,7 +253,7 @@ Legacy `.kcd_dual_subtitles.staging-*` residue produced by v0.3.2 and earlier is
 
 ### Uninstall
 
-The GUI **Uninstall** action removes only this project's directory from the currently selected installation's resolved mod root and removes only this project's entries from that root's existing `mod_order.txt`.
+The GUI **Uninstall** action removes only this project's directory from the **displayed Mods folder** and removes only this project's entries from that folder's existing `mod_order.txt`.
 
 Other mods and their load-order entries are left alone.
 
@@ -254,7 +279,7 @@ Use the styled HUD defaults:
 kcd2-dual-subtitles.exe generate --game "C:\path\to\KCD2-root" --main English --secondary German --subtitle-style hud
 ```
 
-Without `--output`, the Windows build resolves the automatic install target from `--game` using the same rules as the GUI.
+Without `--output`, the Windows CLI resolves the automatic install target from `--game` using the same standard/GDK rules. The custom Mods-folder override introduced in this change is a native-GUI selection; CLI generation continues to use the automatically resolved mod environment.
 
 Create a portable generated-mod ZIP instead of installing:
 
@@ -283,7 +308,7 @@ KCD2 writes `kcd.log` in the Windows Documents folder used by the game. A succes
 
 If upgrading from v0.3.2 after an interrupted or apparently frozen Regenerate, fully close KCD2, run the current version and Regenerate once. The installer recognizes its legacy `.kcd_dual_subtitles.staging-*` transaction residue before publishing the replacement.
 
-Useful failure indicators include CryPak errors such as `ReadFile returned 15`, XML parse failures, missing mod/localization load messages, duplicate `kcd_dual_subtitles`-style mod directories, or an explicit foreign-HUD conflict reported by the installer.
+Useful failure indicators include CryPak errors such as `ReadFile returned 15`, XML parse failures, missing mod/localization load messages, duplicate `kcd_dual_subtitles`-style mod directories, an unsafe localization load-order warning, or an explicit foreign-HUD conflict reported by the installer.
 
 Do not upload or commit full proprietary KCD2 localization or GFX files when reporting an issue.
 
@@ -312,6 +337,7 @@ See:
 
 - [`ROADMAP.md`](ROADMAP.md) for current and future scope;
 - [`docs/mod-format.md`](docs/mod-format.md) for the generated KCD2 mod/PAK contract;
+- [`docs/localization-mod-compatibility.md`](docs/localization-mod-compatibility.md) for effective localization-source composition and third-party correction-mod support;
 - [`docs/v0.3-development-handoff.md`](docs/v0.3-development-handoff.md) for v0.3 engineering continuity and retail evidence;
 - [`docs/v0.3.3-maintenance-handoff.md`](docs/v0.3.3-maintenance-handoff.md) for the crash-safe publication/recovery architecture.
 

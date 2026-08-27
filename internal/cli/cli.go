@@ -184,6 +184,12 @@ func executeGeneration(request generator.Request, stdout, stderr io.Writer, gene
 	case result.SubtitleStyle == generator.SubtitleStyleDifferentiated:
 		fmt.Fprintln(stdout, "Legacy diagnostic subtitle style: differentiated")
 	}
+	if len(result.MainLocalizationOverrides) != 0 {
+		fmt.Fprintf(stdout, "Main localization overrides: %s\n", strings.Join(result.MainLocalizationOverrides, ", "))
+	}
+	if len(result.SecondaryLocalizationOverrides) != 0 {
+		fmt.Fprintf(stdout, "Secondary localization overrides: %s\n", strings.Join(result.SecondaryLocalizationOverrides, ", "))
+	}
 	fmt.Fprintf(stdout, "Patch rows: %d\n", result.PatchRows)
 	fmt.Fprintf(stdout, "Processed: %d\n", result.Stats.Processed)
 	fmt.Fprintf(stdout, "Bilingual: %d\n", result.Stats.Bilingual)
@@ -232,6 +238,7 @@ func printGenerateUsage(output io.Writer) {
 	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style tagged|hud] [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style tagged|hud] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "\nWithout --output, the Windows build resolves the install target from --game: standard PC layouts use <game-root>\\Mods; GDK layouts use Documents\\kingdomcome_mods.\n")
+	fmt.Fprintf(output, "Active localization/correction mods in that resolved Mods root are composed into the selected Main/Secondary sources; an existing mod_order.txt controls their whitelist/order.\n")
 	fmt.Fprintf(output, "--subtitle-style defaults to tagged. hud derives the styled HUD override from the installed game; differentiated remains accepted only for legacy diagnostics.\n")
 	fmt.Fprintf(output, "--canary-id is acceptance-only and visibly prefixes that localization row with [KCD2DS TEST].\n")
 	fmt.Fprintf(output, "Supported languages: %s\n", supportedLanguageNames())

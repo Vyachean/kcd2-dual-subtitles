@@ -20,6 +20,8 @@ var ErrAutomaticInstallUnsupported = errors.New("automatic installation is suppo
 
 var renamePath = os.Rename
 
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
+
 // Documents-specific single-language helpers remain only for focused legacy
 // filesystem tests. Route them through the same transaction-safe multi-target
 // installer so no code path can create a mod-shaped staging directory inside
@@ -128,14 +130,22 @@ func ensureModOrderContains(modsRoot, modID string) error {
 	return nil
 }
 
+// modOrderWithEntry writes exactly one project entry as the final active
+// mod_order.txt entry. Unrelated lines retain their original byte order and a
+// leading UTF-8 BOM, when present, remains a file prefix rather than becoming
+// part of the first mod ID.
 func modOrderWithEntry(original []byte, modID string) []byte {
 	newline := []byte("\n")
 	if bytes.Contains(original, []byte("\r\n")) {
 		newline = []byte("\r\n")
 	}
 
-	updated := append([]byte(nil), original...)
-	if len(updated) > 0 && !bytes.HasSuffix(updated, []byte("\n")) && !bytes.HasSuffix(updated, []byte("\r")) {
+	updated, _ := removeModOrderEntries(original, modID)
+	contentStart := 0
+	if bytes.HasPrefix(updated, utf8BOM) {
+		contentStart = len(utf8BOM)
+	}
+	if len(updated) > contentStart && !bytes.HasSuffix(updated, []byte("\n")) && !bytes.HasSuffix(updated, []byte("\r")) {
 		updated = append(updated, newline...)
 	}
 	updated = append(updated, modID...)
@@ -143,11 +153,25 @@ func modOrderWithEntry(original []byte, modID string) []byte {
 	return updated
 }
 
+// modOrderContains returns true only when modID occurs exactly once and is the
+// final active entry. Comments and blank lines after it do not affect priority.
+// This stronger invariant is required because the generated bilingual patch
+// must load after every localization source it composed.
 func modOrderContains(data []byte, modID string) bool {
-	for _, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
-		if strings.TrimSpace(line) == modID {
-			return true
+	count := 0
+	lastActive := ""
+	for index, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
+		if index == 0 {
+			line = strings.TrimPrefix(line, "\uFEFF")
 		}
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+		if line == modID {
+			count++
+		}
+		lastActive = line
 	}
-	return false
+	return count == 1 && lastActive == modID
 }

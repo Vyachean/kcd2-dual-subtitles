@@ -23,14 +23,15 @@ type generateFunc func(generator.Request) (generator.Result, error)
 type uninstallFunc func(string) (modinstall.UninstallResult, error)
 
 type serviceState struct {
-	mu       sync.RWMutex
-	gameRoot string
+	mu               sync.RWMutex
+	gameRoot         string
+	modsRootOverride string
 }
 
 // Service exposes the small set of application operations needed by the CLI
 // and native GUI without leaking archive or load-order implementation details.
 // state is shared across value copies so detection/Browse/Generate/Uninstall
-// stay bound to the same selected installation.
+// stay bound to the same selected installation and Mods root.
 type Service struct {
 	version   string
 	detect    detectFunc
@@ -45,9 +46,9 @@ func New(version string) Service {
 	return Service{
 		version:   strings.TrimSpace(version),
 		detect:    gamedetect.Detect,
-		inspect:   modinstall.InspectForGameRoot,
+		inspect:   modinstall.InspectInModsRoot,
 		generate:  generator.Generate,
-		uninstall: modinstall.UninstallForGameRoot,
+		uninstall: modinstall.UninstallFromModsRoot,
 		state:     &serviceState{},
 	}
 }
@@ -67,7 +68,8 @@ func (s Service) DetectGame() (gamedetect.Result, error) {
 
 // ValidateGameRoot accepts either a compatible KCD2 root or its immediate
 // parent/Content wrapper and remembers the normalized root for later state and
-// uninstall operations.
+// uninstall operations. Selecting a different game installation clears any
+// custom Mods-root override so it cannot leak across installations.
 func (s Service) ValidateGameRoot(path string) (string, error) {
 	normalized, err := gamedetect.NormalizeSelection(path)
 	if err != nil {
@@ -77,24 +79,75 @@ func (s Service) ValidateGameRoot(path string) (string, error) {
 	return normalized, nil
 }
 
-// InspectInstallation returns this tool's generated-mod state for the selected
-// KCD2 installation, using the same target resolver as generation.
-func (s Service) InspectInstallation() (modinstall.Status, error) {
-	root := s.currentGameRoot()
+// SelectedModsLocation returns the one Mods root that every mod-facing
+// operation must use for the selected game. A user override wins over automatic
+// layout resolution until the game root changes or ResetModsRootOverride is
+// called. Custom roots are revalidated on every use so a deleted/replaced path
+// cannot silently become a different installation target after selection.
+func (s Service) SelectedModsLocation() (modinstall.InstallLocation, error) {
+	root, override := s.currentSelection()
 	if root == "" {
-		return modinstall.Status{}, ErrGameRootNotSelected
+		return modinstall.InstallLocation{}, ErrGameRootNotSelected
 	}
-	return s.inspect(root)
+	if override != "" {
+		return modinstall.ValidateCustomModsRoot(override)
+	}
+	return modinstall.ResolveModSourceLocation(root)
 }
 
-// InspectInstallationForGameRoot validates/selects gameRoot and inspects the
-// exact target automatic generation would use.
-func (s Service) InspectInstallationForGameRoot(gameRoot string) (modinstall.Status, error) {
-	normalized, err := s.ValidateGameRoot(gameRoot)
+// SetModsRootOverride validates and remembers an explicit Mods folder for the
+// currently selected game installation.
+func (s Service) SetModsRootOverride(path string) (modinstall.InstallLocation, error) {
+	if s.currentGameRoot() == "" {
+		return modinstall.InstallLocation{}, ErrGameRootNotSelected
+	}
+	location, err := modinstall.ValidateCustomModsRoot(path)
+	if err != nil {
+		return modinstall.InstallLocation{}, err
+	}
+	if s.state == nil {
+		return modinstall.InstallLocation{}, errors.New("application service state is unavailable")
+	}
+	s.state.mu.Lock()
+	s.state.modsRootOverride = location.ModsRoot
+	s.state.mu.Unlock()
+	return location, nil
+}
+
+// ResetModsRootOverride returns the selected game to its layout-aware automatic
+// Mods root.
+func (s Service) ResetModsRootOverride() (modinstall.InstallLocation, error) {
+	if s.state == nil {
+		return modinstall.InstallLocation{}, errors.New("application service state is unavailable")
+	}
+	s.state.mu.Lock()
+	root := s.state.gameRoot
+	s.state.modsRootOverride = ""
+	s.state.mu.Unlock()
+	if root == "" {
+		return modinstall.InstallLocation{}, ErrGameRootNotSelected
+	}
+	return modinstall.ResolveModSourceLocation(root)
+}
+
+// InspectInstallation returns this tool's generated-mod state for the selected
+// KCD2 installation and selected Mods root.
+func (s Service) InspectInstallation() (modinstall.Status, error) {
+	location, err := s.SelectedModsLocation()
 	if err != nil {
 		return modinstall.Status{}, err
 	}
-	return s.inspect(normalized)
+	return s.inspect(location.ModsRoot)
+}
+
+// InspectInstallationForGameRoot validates/selects gameRoot and inspects the
+// exact target automatic generation would use. Changing gameRoot resets a prior
+// custom Mods override before this inspection.
+func (s Service) InspectInstallationForGameRoot(gameRoot string) (modinstall.Status, error) {
+	if _, err := s.ValidateGameRoot(gameRoot); err != nil {
+		return modinstall.Status{}, err
+	}
+	return s.InspectInstallation()
 }
 
 // GenerateAndInstall preserves the existing non-HUD tagged GUI/application
@@ -125,12 +178,14 @@ func (s Service) GenerateAndInstallWithPresentation(gameRoot string, main, secon
 	if err != nil {
 		return generator.Result{}, err
 	}
+	_, modsRootOverride := s.currentSelection()
 	version := s.version
 	if version == "" {
 		version = "dev"
 	}
 	request := generator.Request{
 		GameRoot:          normalized,
+		ModsRoot:          modsRootOverride,
 		MainLanguage:      main,
 		SecondaryLanguage: secondary,
 		Version:           version,
@@ -147,29 +202,42 @@ func (s Service) GenerateAndInstallWithPresentation(gameRoot string, main, secon
 }
 
 // Uninstall removes only this tool's generated mod and load-order entries from
-// the currently selected KCD2 installation target.
+// the currently selected Mods root.
 func (s Service) Uninstall() (modinstall.UninstallResult, error) {
-	root := s.currentGameRoot()
-	if root == "" {
-		return modinstall.UninstallResult{}, ErrGameRootNotSelected
+	location, err := s.SelectedModsLocation()
+	if err != nil {
+		return modinstall.UninstallResult{}, err
 	}
-	return s.uninstall(root)
+	return s.uninstall(location.ModsRoot)
 }
 
 func (s Service) rememberGameRoot(gameRoot string) {
 	if s.state == nil {
 		return
 	}
+	gameRoot = strings.TrimSpace(gameRoot)
 	s.state.mu.Lock()
-	s.state.gameRoot = strings.TrimSpace(gameRoot)
+	if s.state.gameRoot != "" && !samePathSelection(s.state.gameRoot, gameRoot) {
+		s.state.modsRootOverride = ""
+	}
+	s.state.gameRoot = gameRoot
 	s.state.mu.Unlock()
 }
 
-func (s Service) currentGameRoot() string {
+func samePathSelection(left, right string) bool {
+	return strings.EqualFold(strings.TrimSpace(left), strings.TrimSpace(right))
+}
+
+func (s Service) currentSelection() (gameRoot, modsRootOverride string) {
 	if s.state == nil {
-		return ""
+		return "", ""
 	}
 	s.state.mu.RLock()
 	defer s.state.mu.RUnlock()
-	return s.state.gameRoot
+	return s.state.gameRoot, s.state.modsRootOverride
+}
+
+func (s Service) currentGameRoot() string {
+	root, _ := s.currentSelection()
+	return root
 }

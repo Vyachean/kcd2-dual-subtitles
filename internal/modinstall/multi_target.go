@@ -42,6 +42,10 @@ func installIntoDocumentsVersionedForLanguages(documents string, targetLanguages
 }
 
 func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages []localization.Language, rows []localization.DialogueRow, hud []byte, version string, withHUD bool) (string, error) {
+	return installIntoModsRootVersionedForLanguagesWithLegacyRecovery(modsRoot, targetLanguages, rows, hud, version, withHUD, true)
+}
+
+func installIntoModsRootVersionedForLanguagesWithLegacyRecovery(modsRoot string, targetLanguages []localization.Language, rows []localization.DialogueRow, hud []byte, version string, withHUD, recoverLegacyTransactions bool) (string, error) {
 	modsRoot = strings.TrimSpace(modsRoot)
 	if modsRoot == "" {
 		return "", errors.New("KCD2 mod root is empty")
@@ -58,8 +62,10 @@ func installIntoModsRootVersionedForLanguages(modsRoot string, targetLanguages [
 
 	// Repair any interrupted transaction before inspecting conflicts or building
 	// another replacement. Transaction workspaces live beside modsRoot and are
-	// therefore never visible to KCD2's direct-child mod scan.
-	if err := recoverInstallTransactions(modsRoot); err != nil {
+	// therefore never visible to KCD2's direct-child mod scan. Custom-root calls
+	// ignore legacy unowned transactions because old public releases could only
+	// have created those for their layout-resolved automatic Mods root.
+	if err := recoverInstallTransactionsWithLegacy(modsRoot, recoverLegacyTransactions); err != nil {
 		return "", err
 	}
 	if err := cleanupLegacyToolTempDirs(modsRoot); err != nil {

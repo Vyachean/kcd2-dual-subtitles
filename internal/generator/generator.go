@@ -10,6 +10,7 @@ import (
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/gameassets"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/gfxpatch"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/localizationsource"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modarchive"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/modinstall"
 )
@@ -25,12 +26,16 @@ var (
 
 // Request describes one end-to-end mod generation operation. An empty
 // OutputPath selects automatic installation; a non-empty OutputPath writes a
-// portable mod ZIP instead. CanaryID enables an explicit acceptance-only
-// marker on one existing localization row. An empty SubtitleStyle keeps the
-// accepted tagged format for backward compatibility. HUDPresentation is used
-// only with SubtitleStyleHUD; nil preserves the live-proven rc.10 defaults.
+// portable mod ZIP instead. ModsRoot, when non-empty, is an explicit user
+// override for both installed-mod source discovery and automatic publication;
+// otherwise the layout-aware resolver selects the Mods root from GameRoot.
+// CanaryID enables an explicit acceptance-only marker on one existing
+// localization row. An empty SubtitleStyle keeps the accepted tagged format for
+// backward compatibility. HUDPresentation is used only with SubtitleStyleHUD;
+// nil preserves the live-proven rc.10 defaults.
 type Request struct {
 	GameRoot          string
+	ModsRoot          string
 	MainLanguage      localization.Language
 	SecondaryLanguage localization.Language
 	SubtitleStyle     SubtitleStyle
@@ -42,23 +47,28 @@ type Request struct {
 
 // Result describes a successfully generated mod destination.
 type Result struct {
-	OutputPath          string
-	InstallPath         string
-	Stats               localization.MergeStats
-	PatchRows           int
-	CanaryID            string
-	SubtitleStyle       SubtitleStyle
-	HUDOverride         bool
-	LocalizationTargets int
+	OutputPath                     string
+	InstallPath                    string
+	Stats                          localization.MergeStats
+	PatchRows                      int
+	CanaryID                       string
+	SubtitleStyle                  SubtitleStyle
+	HUDOverride                    bool
+	LocalizationTargets            int
+	MainLocalizationOverrides      []string
+	SecondaryLocalizationOverrides []string
 }
 
-// Generate reads installed localization PAKs, merges their dialogue rows and
-// writes only changed rows as a KCD2 localization patch. Selected languages are
-// text sources only; the resulting patch is published under every supported
-// localization PAK present in the selected installation so it remains active
-// regardless of the game's current language. The explicit HUD prototype also
-// derives a HUD override from the user's installed IPL_GameData.pak. Base-game
-// files are never modified.
+// Generate reads effective installed localization sources, merges their
+// dialogue rows and writes only changed rows as a KCD2 localization patch.
+// Active localization/correction mods are deterministically overlaid on each
+// selected stock language PAK before bilingual merging. The resulting patch is
+// published only under the selected Main and Secondary localization slots to
+// avoid duplicating the same large payload across every installed language.
+// If the game's active UI/text language is changed to a third language, the
+// user must regenerate with that language selected. The explicit HUD prototype
+// also derives a HUD override from the user's installed IPL_GameData.pak.
+// Base-game and third-party mod files are never modified.
 func Generate(request Request) (Result, error) {
 	mainInfo, secondaryInfo, err := validateRequest(request)
 	if err != nil {
@@ -78,14 +88,7 @@ func Generate(request Request) (Result, error) {
 		return Result{}, err
 	}
 
-	installedLanguages, err := localization.InstalledLanguages(request.GameRoot)
-	if err != nil {
-		return Result{}, fmt.Errorf("discover installed localization languages: %w", err)
-	}
-	targetLanguages := make([]localization.Language, 0, len(installedLanguages))
-	for _, info := range installedLanguages {
-		targetLanguages = append(targetLanguages, info.Language)
-	}
+	targetLanguages := []localization.Language{request.MainLanguage, request.SecondaryLanguage}
 
 	mainPAK := filepath.Join(localizationDir, mainInfo.PakFilename)
 	secondaryPAK := filepath.Join(localizationDir, secondaryInfo.PakFilename)
@@ -96,23 +99,16 @@ func Generate(request Request) (Result, error) {
 		return Result{}, err
 	}
 
-	mainXML, err := localization.ReadDialogueXML(mainPAK)
+	mainSource, err := resolveLocalizationSource(request, request.MainLanguage)
 	if err != nil {
-		return Result{}, fmt.Errorf("read main language %s: %w", request.MainLanguage, err)
+		return Result{}, fmt.Errorf("resolve main language %s: %w", request.MainLanguage, err)
 	}
-	secondaryXML, err := localization.ReadDialogueXML(secondaryPAK)
+	secondarySource, err := resolveLocalizationSource(request, request.SecondaryLanguage)
 	if err != nil {
-		return Result{}, fmt.Errorf("read secondary language %s: %w", request.SecondaryLanguage, err)
+		return Result{}, fmt.Errorf("resolve secondary language %s: %w", request.SecondaryLanguage, err)
 	}
-
-	mainRows, err := localization.ParseDialogueXML(mainXML)
-	if err != nil {
-		return Result{}, fmt.Errorf("parse main language %s: %w", request.MainLanguage, err)
-	}
-	secondaryRows, err := localization.ParseDialogueXML(secondaryXML)
-	if err != nil {
-		return Result{}, fmt.Errorf("parse secondary language %s: %w", request.SecondaryLanguage, err)
-	}
+	mainRows := mainSource.Rows
+	secondaryRows := secondarySource.Rows
 
 	mergedRows, stats, err := mergeRowsForStyle(style, presentation, mainRows, secondaryRows, mainInfo.SubtitleTag, secondaryInfo.SubtitleTag)
 	if err != nil {
@@ -130,11 +126,13 @@ func Generate(request Request) (Result, error) {
 	}
 
 	result := Result{
-		Stats:               stats,
-		PatchRows:           len(patchRows),
-		CanaryID:            strings.TrimSpace(request.CanaryID),
-		SubtitleStyle:       style,
-		LocalizationTargets: len(targetLanguages),
+		Stats:                          stats,
+		PatchRows:                      len(patchRows),
+		CanaryID:                       strings.TrimSpace(request.CanaryID),
+		SubtitleStyle:                  style,
+		LocalizationTargets:            len(targetLanguages),
+		MainLocalizationOverrides:      contributionNames(mainSource.Contributions),
+		SecondaryLocalizationOverrides: contributionNames(secondarySource.Contributions),
 	}
 
 	var derivedHUD []byte
@@ -174,17 +172,57 @@ func Generate(request Request) (Result, error) {
 		return result, nil
 	}
 
-	var installPath string
-	if result.HUDOverride {
-		installPath, err = modinstall.InstallVersionedWithHUDForLanguages(request.GameRoot, targetLanguages, patchRows, derivedHUD, version)
-	} else {
-		installPath, err = modinstall.InstallVersionedForLanguages(request.GameRoot, targetLanguages, patchRows, version)
+	if err := validateAutomaticLocalizationPrecedence(request, mainSource.DialogueWriters, secondarySource.DialogueWriters); err != nil {
+		return Result{}, fmt.Errorf("validate localization load order: %w", err)
 	}
+	installPath, err := installGeneratedMod(request, targetLanguages, patchRows, derivedHUD, version, result.HUDOverride)
 	if err != nil {
 		return Result{}, fmt.Errorf("install generated mod: %w", err)
 	}
 	result.InstallPath = installPath
 	return result, nil
+}
+
+func resolveLocalizationSource(request Request, language localization.Language) (localizationsource.Result, error) {
+	modsRoot := strings.TrimSpace(request.ModsRoot)
+	if modsRoot != "" {
+		return localizationsource.ResolveWithModsRoot(request.GameRoot, modsRoot, language)
+	}
+	return localizationsource.Resolve(request.GameRoot, language)
+}
+
+func installGeneratedMod(request Request, targetLanguages []localization.Language, patchRows []localization.DialogueRow, derivedHUD []byte, version string, withHUD bool) (string, error) {
+	modsRoot := strings.TrimSpace(request.ModsRoot)
+	if modsRoot != "" {
+		if _, err := modinstall.ValidateCustomModsRoot(modsRoot); err != nil {
+			return "", err
+		}
+		if withHUD {
+			return modinstall.InstallVersionedWithHUDForLanguagesInModsRoot(modsRoot, targetLanguages, patchRows, derivedHUD, version)
+		}
+		return modinstall.InstallVersionedForLanguagesInModsRoot(modsRoot, targetLanguages, patchRows, version)
+	}
+	if withHUD {
+		return modinstall.InstallVersionedWithHUDForLanguages(request.GameRoot, targetLanguages, patchRows, derivedHUD, version)
+	}
+	return modinstall.InstallVersionedForLanguages(request.GameRoot, targetLanguages, patchRows, version)
+}
+
+func contributionNames(contributions []localizationsource.Contribution) []string {
+	if len(contributions) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(contributions))
+	for _, contribution := range contributions {
+		name := strings.TrimSpace(contribution.Name)
+		if name == "" {
+			name = strings.TrimSpace(contribution.ModID)
+		}
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func mergeRowsForStyle(style SubtitleStyle, presentation HUDPresentationConfig, mainRows, secondaryRows []localization.DialogueRow, mainTag, secondaryTag string) ([]localization.DialogueRow, localization.MergeStats, error) {
