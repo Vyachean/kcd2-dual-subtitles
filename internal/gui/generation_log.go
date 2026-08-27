@@ -56,7 +56,7 @@ func formatGenerationFailed(context generationLogContext, err error) string {
 	if err != nil {
 		lines = append(lines, "✗ "+err.Error())
 	}
-	lines = append(lines, "No successful replacement was published.")
+	lines = append(lines, "Generation did not complete successfully. Any interrupted replacement is recovered by the next install or uninstall operation.")
 	return strings.Join(lines, "\r\n")
 }
 
