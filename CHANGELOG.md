@@ -2,6 +2,40 @@
 
 All notable stable-release changes are recorded here. Release candidates are development history and are not listed individually.
 
+## [v0.3.5] - 2026-08-27
+
+Localization-mod compatibility and generation-transparency release.
+
+### Added
+
+- Main and Secondary dialogue sources now compose compatible active installed localization/correction mods over the stock game localization instead of reading only stock PAKs.
+- Generic Warhorse `<anything>_<modid>.xml` localization resources are supported for already-known dialogue IDs, including two-cell and three-cell rows.
+- The Windows GUI now displays the active **Mods folder** and allows an explicit custom root with **Change...** / **Reset**.
+- The native GUI includes a selectable **Generation activity** log showing selected folders/languages, effective localization sources, applied localization mods, merge/patch counts, HUD mode, load-order validation, install destination and failure context.
+
+### Changed
+
+- Generated localization is emitted only for the selected Main and Secondary language slots instead of duplicating the same bilingual payload under every installed KCD2 language. On the 16-language retail test installation this reduces localization payload duplication from 16 PAK copies to 2 (about 8x less generated localization data).
+- KCD2's active text/interface language must therefore be one of the selected Main/Secondary languages. After switching the game to a third language, Regenerate with that language selected.
+- Localization source discovery, generation/install status, Regenerate, Uninstall, HUD-conflict detection and `mod_order.txt` now consistently use the same selected Mods root.
+- Existing `mod_order.txt` files keep exactly one final `kcd_dual_subtitles` entry while preserving unrelated relative order. UTF-8 BOM is preserved and ignored for project-entry matching/removal.
+
+### Fixed
+
+- Load-order safety now considers every active localization mod capable of writing a relevant dialogue ID, including same-text writes that could still overwrite a bilingual row at runtime.
+- `<supports>` is evaluated only after a selected-language PAK proves that a localization mod is relevant to that source.
+- Generic localization patches no longer leak unrelated UI/items/quest strings into bilingual subtitles; unknown generic IDs remain excluded.
+- Conflicting values for one dialogue ID across separate generic localization resources fail closed instead of inventing an undocumented winner.
+- Custom Mods roots are revalidated before use.
+- Install transactions now record their Mods-root owner so sibling custom Mods environments cannot recover each other's interrupted transaction.
+- Generation failure text no longer overstates publication state when crash-recovery work may still be pending.
+
+### Notes
+
+- Real KCD2 1.5.6 Xbox/GDK acceptance was completed with Chineses Fix 20260727. KCD2 loaded the stock Simplified Chinese localization, then Chineses Fix, then the generated Dual Subtitles localization in the expected order.
+- The observed missing CJK glyphs when KCD2 uses an English UI/font configuration are a separate game font limitation and are not changed in this release.
+- No proprietary retail or third-party localization content is distributed with the application.
+
 ## [v0.3.4] - 2026-08-25
 
 Distribution/package maintenance release. Runtime subtitle generation, HUD transformation and crash-safe install behavior are unchanged from v0.3.3.
@@ -143,6 +177,7 @@ Initial stable localization-only release.
 - CLI generation and acceptance canary support.
 - Retail validation on KCD2 1.5.6 Xbox / Microsoft Store PC.
 
+[v0.3.5]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.5
 [v0.3.4]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.4
 [v0.3.3]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.3
 [v0.3.2]: https://github.com/Vyachean/kcd2-dual-subtitles/releases/tag/v0.3.2
