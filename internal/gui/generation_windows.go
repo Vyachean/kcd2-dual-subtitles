@@ -14,13 +14,13 @@ const (
 	wmApp                = 0x8000
 	wmGenerationComplete = wmApp + 1
 
-	generationWindowWidth  = 780
-	generationWindowHeight = 890
-	generationEditMultiline = 0x0004
+	generationWindowWidth     = 780
+	generationWindowHeight    = 890
+	generationEditMultiline   = 0x0004
 	generationEditAutoVScroll = 0x0040
-	generationEditReadOnly = 0x0800
-	generationSWPNoMove   = 0x0002
-	generationSWPNoZOrder = 0x0004
+	generationEditReadOnly    = 0x0800
+	generationSWPNoMove       = 0x0002
+	generationSWPNoZOrder     = 0x0004
 )
 
 var (
@@ -79,7 +79,9 @@ func (w *nativeWindow) finishGeneration() {
 	w.setGenerationBusy(false)
 	if outcome.err != nil {
 		w.setGenerationLog(formatGenerationFailed(outcome.context, outcome.err))
-		w.setStatus("Generation failed. See Generation activity below for details.")
+		if generationLogEdit != 0 {
+			w.setStatus("Generation failed. See Generation activity below for details.")
+		}
 		showMessage(w.hwnd, "Generation failed", outcome.err.Error(), mbOK|mbIconError)
 		return
 	}
@@ -91,7 +93,9 @@ func (w *nativeWindow) finishGeneration() {
 	w.setText(w.generateButton, w.model.GenerateButtonLabel())
 	w.enable(w.uninstallButton, true)
 	w.setGenerationLog(formatGenerationSucceeded(outcome.context, outcome.result))
-	w.setStatus("Generation completed. Restart KCD2 before testing.")
+	if generationLogEdit != 0 {
+		w.setStatus("Generation completed. Restart KCD2 before testing.")
+	}
 }
 
 // ensureGenerationLogControls expands the fixed native window once and creates
