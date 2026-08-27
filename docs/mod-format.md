@@ -242,10 +242,10 @@ If an existing file is present in the selected `ModsRoot`:
 - all existing project entries are normalized to exactly one `kcd_dual_subtitles` entry;
 - that project entry is the final active entry, so generated localization loads after source localization mods;
 - unrelated entries retain their relative order;
-- newline style is preserved where practical;
+- newline style and a leading UTF-8 BOM are preserved where practical;
 - publication/load-order changes participate in the same staged rollback transaction as the generated mod directory.
 
-If no order file exists and an actually contributing localization source folder alphabetically sorts after `kcd_dual_subtitles`, automatic installation fails closed rather than create a whitelist or publish an output that the later source mod would overwrite.
+If no order file exists and any active selected-language localization mod capable of writing a relevant dialogue ID alphabetically sorts after `kcd_dual_subtitles`, automatic installation fails closed rather than create a whitelist or publish an output that the later source mod could overwrite. This includes a writer whose value happens to be identical to the already-effective source text.
 
 Uninstall removes only this project's matching entries from that same selected root.
 
@@ -257,7 +257,9 @@ If a foreign HUD is found, styled installation stops with an explicit conflict r
 
 ## Publication and GDK/OneDrive fallback
 
-The generated replacement is built in a transaction workspace **beside the selected `ModsRoot`**, never as a mod-shaped direct child inside KCD2's scanned mod root. The staged candidate and previous installation remain on the same volume as the target for normal rename publication while avoiding stale duplicate mods if the process is interrupted.
+The generated replacement is built in a transaction workspace **beside the selected `ModsRoot`**, never as a mod-shaped direct child inside KCD2's scanned mod root. New transactions record their normalized Mods-root owner, so recovery for one sibling Mods environment does not mutate another. Custom-root operations ignore older unowned transaction workspaces because pre-custom-root releases could only create those for layout-resolved automatic roots.
+
+The staged candidate and previous installation remain on the same volume as the target for normal rename publication while avoiding stale duplicate mods if the process is interrupted.
 
 The Microsoft GDK path uses the Windows Known Folders API, so redirected/OneDrive Documents are supported. Windows/OneDrive can transiently deny the final rename even when directory creation and writes succeed. For retryable permission/sharing failures the installer:
 
