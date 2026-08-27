@@ -90,10 +90,10 @@ func buildLocalizationPAK(rows []localization.DialogueRow) ([]byte, error) {
 	}
 
 	// Current KCD2 localization mods patch existing string IDs through a
-	// text_ui__<modid>.xml resource. Retail localization PAKs and the live-proven
-	// Chineses Fix use raw DEFLATE entries with no data descriptor or extra
-	// fields, which avoids storing the large generated XML verbatim.
-	return buildDeflatedLocalizationCryPak([]archiveEntry{
+	// text_ui__<modid>.xml resource. Use a raw Store ZIP entry with precomputed
+	// CRC/sizes so local and central headers agree and no data descriptor or ZIP
+	// extra fields are required by the game-facing PAK.
+	return buildCryPak([]archiveEntry{
 		{name: LocalizationPatchArchivePath, data: patchXML},
 	})
 }
@@ -102,9 +102,8 @@ func modArchivePath(relativePath string) string {
 	return filepath.ToSlash(filepath.Join(ModID, relativePath))
 }
 
-// buildCryPak preserves the accepted stored-entry CryPak byte contract for
-// callers that require it. Generated localization uses the separately proven
-// DEFLATE contract in buildDeflatedLocalizationCryPak.
+// buildCryPak preserves the accepted localization PAK byte contract. Do not
+// silently broaden Data-PAK compatibility changes into this working path.
 func buildCryPak(entries []archiveEntry) ([]byte, error) {
 	return buildRawCryPak(entries, 0, 0)
 }

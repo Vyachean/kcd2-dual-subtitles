@@ -61,13 +61,14 @@ type Result struct {
 
 // Generate reads effective installed localization sources, merges their
 // dialogue rows and writes only changed rows as a KCD2 localization patch.
-// Selected languages are text sources only; active localization/correction mods
-// are deterministically overlaid on the stock language PAK before bilingual
-// merging. The resulting patch is published under every supported localization
-// PAK present in the selected installation so it remains active regardless of
-// the game's current language. The explicit HUD prototype also derives a HUD
-// override from the user's installed IPL_GameData.pak. Base-game and third-party
-// mod files are never modified.
+// Active localization/correction mods are deterministically overlaid on each
+// selected stock language PAK before bilingual merging. The resulting patch is
+// published only under the selected Main and Secondary localization slots to
+// avoid duplicating the same large payload across every installed language.
+// If the game's active UI/text language is changed to a third language, the
+// user must regenerate with that language selected. The explicit HUD prototype
+// also derives a HUD override from the user's installed IPL_GameData.pak.
+// Base-game and third-party mod files are never modified.
 func Generate(request Request) (Result, error) {
 	mainInfo, secondaryInfo, err := validateRequest(request)
 	if err != nil {
@@ -87,14 +88,7 @@ func Generate(request Request) (Result, error) {
 		return Result{}, err
 	}
 
-	installedLanguages, err := localization.InstalledLanguages(request.GameRoot)
-	if err != nil {
-		return Result{}, fmt.Errorf("discover installed localization languages: %w", err)
-	}
-	targetLanguages := make([]localization.Language, 0, len(installedLanguages))
-	for _, info := range installedLanguages {
-		targetLanguages = append(targetLanguages, info.Language)
-	}
+	targetLanguages := []localization.Language{request.MainLanguage, request.SecondaryLanguage}
 
 	mainPAK := filepath.Join(localizationDir, mainInfo.PakFilename)
 	secondaryPAK := filepath.Join(localizationDir, secondaryInfo.PakFilename)
