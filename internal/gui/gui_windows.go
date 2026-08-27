@@ -322,7 +322,7 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 		return err
 	}
 	w.secondaryCombo = secondaryCombo
-	if _, err := w.createControl("STATIC", "These are subtitle text sources. The generated mod works with any installed in-game language.", wsChild|wsVisible, 32, 220, 680, 22, 0); err != nil {
+	if _, err := w.createControl("STATIC", "KCD2 text language must be Main or Secondary; regenerate after switching to another language.", wsChild|wsVisible, 32, 220, 680, 22, 0); err != nil {
 		return err
 	}
 
