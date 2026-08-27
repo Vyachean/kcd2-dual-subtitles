@@ -82,14 +82,15 @@ func (s Service) ValidateGameRoot(path string) (string, error) {
 // SelectedModsLocation returns the one Mods root that every mod-facing
 // operation must use for the selected game. A user override wins over automatic
 // layout resolution until the game root changes or ResetModsRootOverride is
-// called.
+// called. Custom roots are revalidated on every use so a deleted/replaced path
+// cannot silently become a different installation target after selection.
 func (s Service) SelectedModsLocation() (modinstall.InstallLocation, error) {
 	root, override := s.currentSelection()
 	if root == "" {
 		return modinstall.InstallLocation{}, ErrGameRootNotSelected
 	}
 	if override != "" {
-		return modinstall.InstallLocation{ModsRoot: override, Layout: modinstall.InstallLayoutCustom}, nil
+		return modinstall.ValidateCustomModsRoot(override)
 	}
 	return modinstall.ResolveModSourceLocation(root)
 }
