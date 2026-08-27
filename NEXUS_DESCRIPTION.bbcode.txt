@@ -58,7 +58,7 @@ The tool currently recognizes the known KCD2 PC localization PAK set and shows o
 - Ukrainian
 - Vietnamese
 
-At least two supported installed languages are required. No particular language pair is mandatory, and the game's own interface language does not have to match either selected subtitle language.
+At least two supported installed languages are required. No particular language pair is mandatory. The game's active text/interface language must be one of the selected Main/Secondary languages; after switching KCD2 to a third language, Regenerate with that language selected.
 
 [b]Compatibility[/b]
 
@@ -86,6 +86,7 @@ Styled mode therefore needs to supply Libs/UI/hud.gfx. If another installed mod 
 [b]Known limitations[/b]
 
 - the language pair is selected at generation time; there is no in-game secondary-language switch yet;
+- the generated localization patch is emitted only for the selected Main and Secondary language slots; switching KCD2 to a third text/interface language requires Regenerate with that language selected;
 - standalone narrative/cinematic captions routed separately from the proven standard/bubble subtitle paths may remain single-language or unstyled;
 - subtitle-source composition is limited to dialogue localization; items, quests, tutorials, codex and general UI text are outside the current scope;
 - new dialogue introduced only by another mod's generic localization patch is not automatically classified as dialogue; safe support would require following that content mod's dialogue references rather than treating all new localization IDs as subtitles;
