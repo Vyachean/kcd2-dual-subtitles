@@ -24,7 +24,7 @@ and then composes compatible active dialogue localization overrides from the sel
 
 The supported language filename/tag registry is explicit in `internal/localization/language.go`. Unknown future `*_xml.pak` files are not assigned guessed metadata.
 
-The selected Main and Secondary languages are **text sources only**. They do not determine which single localization slot the generated mod targets.
+The selected Main and Secondary languages are both the text sources and the only localization slots targeted by the generated mod.
 
 ## Selected Mods root
 
@@ -60,9 +60,8 @@ The project-owned directory beneath the selected root is:
 <ModsRoot>\kcd_dual_subtitles\
 ├── mod.manifest
 ├── Localization\
-│   ├── <installed-supported-language-1>_xml.pak
-│   ├── <installed-supported-language-2>_xml.pak
-│   └── ...
+│   ├── <Main>_xml.pak
+│   └── <Secondary>_xml.pak
 └── Data\
     └── kcd_dual_subtitles.pak      # styled HUD mode only
 ```
@@ -82,15 +81,17 @@ Data\kcd_dual_subtitles.pak
 
 The HUD is derived from the user's current installed retail HUD. It is not stored as a source fixture or shipped as a static binary by the project.
 
-## Why localization is emitted under every installed supported language slot
+## Why localization is emitted only for Main and Secondary
 
 KCD2 loads localization patches through the game's currently active language slot. A patch written only as `Czech_xml.pak`, for example, is ignored when the game is currently using English text.
 
-Stable v0.3 therefore emits the same generated bilingual patch under **every supported localization PAK actually present in the selected installation**.
+Earlier v0.3 development emitted the same generated bilingual patch under every supported localization PAK present in the selected installation. That made the chosen subtitle pair independent from the game's active UI/text language, but duplicated the same large generated payload many times.
 
-This makes the chosen subtitle pair independent from the game's active UI/text language.
+The current generator therefore emits the patch only under the selected **Main** and **Secondary** language slots. For a Czech + German pair, the generated mod contains `Czech_xml.pak` and `German_xml.pak` only.
 
-The payload is still generated from only the selected Main/Secondary effective source tables.
+KCD2's active text/interface language must consequently be one of those two selected languages. If the game is switched to a third language, the user must Regenerate with that language selected as either Main or Secondary.
+
+The payload itself is still generated only from the selected Main/Secondary effective source tables.
 
 ## Patch XML
 
