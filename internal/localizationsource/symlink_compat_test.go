@@ -62,6 +62,28 @@ func TestResolveFromModsRootAcceptsUIOnlyLocalizationPAKSymlink(t *testing.T) {
 	}
 }
 
+func TestResolveFromModsRootAcceptsSymlinkedLocalizationPAKWithUnrecognizedUIResource(t *testing.T) {
+	modsRoot := t.TempDir()
+	targetRoot := t.TempDir()
+	writeLocalizationMod(t, targetRoot, "staged", "sleep_and_eat", "Staged", "English_xml.pak", map[string]string{
+		"sleep_and_eat.xml": dialogueXML(localization.DialogueRow{ID: "sleep_and_eat_name", Source: "mod", Text: "UI text"}),
+	})
+
+	modDir := writeSymlinkLocalizationModManifest(t, modsRoot, "deployed", "sleep_and_eat")
+	target := filepath.Join(targetRoot, "staged", "Localization", "English_xml.pak")
+	link := filepath.Join(modDir, "Localization", "English_xml.pak")
+	createTestSymlinkOrSkip(t, target, link)
+
+	stock := []localization.DialogueRow{{ID: "dialogue", Source: "stock", Text: "stock"}}
+	result, err := resolveFromModsRoot(stock, modsRoot, "English_xml.pak")
+	if err != nil {
+		t.Fatalf("resolveFromModsRoot() error = %v", err)
+	}
+	if !reflect.DeepEqual(result.Rows, stock) || len(result.Contributions) != 0 || len(result.DialogueWriters) != 0 {
+		t.Fatalf("result = %+v, want non-dialogue symlinked PAK accepted and ignored by dialogue composition", result)
+	}
+}
+
 func TestResolveFromModsRootRejectsBrokenLocalizationPAKSymlink(t *testing.T) {
 	modsRoot := t.TempDir()
 	modDir := writeSymlinkLocalizationModManifest(t, modsRoot, "broken", "broken")
