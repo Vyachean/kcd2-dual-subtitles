@@ -186,7 +186,7 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 		// with no selected-language PAK cannot affect this source and must not make
 		// generation depend on unrelated activation metadata.
 		pakPath := filepath.Join(dir, "Localization", pakFilename)
-		info, err := os.Lstat(pakPath)
+		_, err = os.Lstat(pakPath)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -196,8 +196,17 @@ func activeLocalizationMods(modsRoot, pakFilename, gameVersion string, gameVersi
 		if orderExists && identity.modID == "" {
 			return nil, fmt.Errorf("localization mod %q has no explicit mod ID required by %s", entry.Name(), modinstall.ModOrderFilename)
 		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("active localization PAK is not a regular file: %q", pakPath)
+
+		// Mod managers can deploy a PAK as a symbolic link to their staging
+		// directory. Follow such links, but keep the existing fail-closed contract:
+		// the resolved object still has to be a regular file. Broken links,
+		// directories and other special objects are rejected.
+		info, err := os.Stat(pakPath)
+		if err != nil {
+			return nil, fmt.Errorf("resolve active localization PAK %q: %w", pakPath, err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("active localization PAK does not resolve to a regular file: %q", pakPath)
 		}
 		if len(identity.supports) != 0 {
 			if gameVersionErr != nil {
