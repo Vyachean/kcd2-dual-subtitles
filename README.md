@@ -72,6 +72,8 @@ Automatic discovery currently looks for Microsoft GDK/Xbox installations, Steam 
 
 For each selected subtitle language, the stock game localization remains the base/fallback and compatible active localization mods from the **displayed Mods folder** are applied on top. Without `mod_order.txt`, local mods follow KCD2's alphabetical folder order; when `mod_order.txt` exists, its whitelist and explicit order are respected. Installation keeps `kcd_dual_subtitles` as the final active entry of an existing order file so the generated bilingual patch loads after the localization sources it composed. The tool does not create `mod_order.txt` when it is absent; if alphabetical load order would let a contributing localization mod overwrite the generated patch, automatic installation fails with an explanation instead of creating a new whitelist. Steam Workshop content is not separately discovered by this feature unless it is also present through the selected local-mod layout.
 
+Selected-language localization PAKs deployed by a mod manager may be ordinary files, hardlinks or filesystem symbolic links. Symbolic links are followed only when they resolve to a regular PAK file; broken links, directories and other non-regular targets fail closed. UI/item-only localization PAKs are allowed and their unrelated strings remain untouched because only dialogue IDs participate in bilingual composition.
+
 The v0.3 retail test cycle was performed on **Kingdom Come: Deliverance II 1.5.6, Xbox / Microsoft Store PC**. Other compatible Windows storefront builds are supported by the same file-layout rules but have not all been separately retail-tested by this project.
 
 ## Subtitle styles and other HUD mods
