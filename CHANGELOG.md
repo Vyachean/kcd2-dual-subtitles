@@ -2,6 +2,23 @@
 
 All notable stable-release changes are recorded here. Release candidates are development history and are not listed individually.
 
+## [v0.3.7] - 2026-09-04
+
+Localization-mod deployment compatibility release.
+
+### Fixed
+
+- Active third-party `Localization/<language>_xml.pak` files deployed as filesystem symbolic links by mod managers are now followed and accepted when the resolved target is a regular file.
+- Broken localization PAK links, directories and other non-regular targets still fail closed with source context instead of being treated as valid localization inputs.
+- UI/item-only localization PAKs deployed through links can now coexist with subtitle generation without requiring users to delete their localization files; unrelated non-dialogue strings remain outside bilingual composition.
+
+### Validation
+
+- Linux and Windows CI require the symlink regression tests to execute; inability to create the test links fails CI instead of silently skipping coverage.
+- Regression coverage includes dialogue overrides, UI-only generic localization, an observed UI-only `sleep_and_eat.xml`-style PAK, broken links and non-regular targets.
+- Real-user acceptance was completed with the previously removed localization files restored: generation succeeded, subtitle text displayed correctly, the selected voiceover remained correct, and mod UI/localized item text remained intact.
+- The fix is generic and does not special-case Vortex, a particular Nexus mod, language or mod ID.
+
 ## [v0.3.6] - 2026-08-27
 
 Distribution-hardening release. Runtime subtitle generation, localization compatibility, HUD transformation and installation behavior are unchanged from v0.3.5.
