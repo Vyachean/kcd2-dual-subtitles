@@ -32,6 +32,16 @@ The Windows GUI displays this resolved path as **Mods folder**. If the user's ac
 
 Custom roots are revalidated when used, not only when selected. A deleted, replaced or otherwise invalid custom path therefore fails instead of silently becoming a different target. Install transactions also record the normalized Mods-root owner. Recovery ignores transactions owned by a sibling Mods environment, and custom-root operations ignore old unowned transaction workspaces from pre-custom-root releases.
 
+## Mod-manager deployment links
+
+A selected-language `Localization/<language>_xml.pak` does not have to be a regular directory entry itself. Mod managers may expose the deployed PAK as a filesystem symbolic link to a regular file in a staging directory. The resolver first inspects the deployed path without following links so a genuinely absent language PAK can still be distinguished from an existing broken link, then follows the path and requires the resolved object to be a regular file.
+
+This keeps the source contract fail-closed: broken links, links to directories and other non-regular targets are rejected. Ordinary files and hardlinks remain accepted. The archive is still opened through the deployed path, so the existing ZIP/resource/XML/size validation remains authoritative and no third-party source file is modified.
+
+This behavior is intentionally generic and contains no Vortex- or mod-specific branch. A linked PAK containing only item/UI localization is valid input even when it contributes no dialogue rows; unsupported/non-dialogue resources remain outside bilingual subtitle composition.
+
+The v0.3.7 acceptance cycle reproduced the original failure class with multiple localization-bearing mods and then verified the release candidate on the reporter's actual setup with those localization files restored. Generation completed successfully, subtitle text and voiceover remained correct, and the mods' UI/localized item text remained intact.
+
 ## Active mod order
 
 When `mod_order.txt` is absent, applicable local mod directories are applied in deterministic alphabetical folder order. When `mod_order.txt` exists, it is treated as the active whitelist and explicit order. Entries are matched to the manifest `modid` exactly; folder names are not aliases for mod IDs and case is not normalized into another ID.
