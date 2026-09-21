@@ -8,6 +8,7 @@ It reads localization and HUD data from the installed game, does not redistribut
 - ordinary bottom dialogue subtitles in both selected languages;
 - story and cutscene dialogue that uses the normal subtitle path;
 - overhead NPC subtitle bubbles;
+- preserves the game's subtitle appearance by default;
 - optional language tags;
 - optional per-line color, size and italic styling;
 - optional outline and shadow for readability;
@@ -74,16 +75,23 @@ The v0.3 retail test cycle was performed on [b]Kingdom Come: Deliverance II 1.5.
 
 [b]Subtitle styles and other HUD mods[/b]
 
-With appearance customization disabled, the tool uses a simple tagged bilingual format such as:
+With all presentation options left off, the tool preserves the game's existing subtitle appearance and only adds the Secondary line:
+
+[code]
+Primary text
+Secondary text
+[/code]
+
+Language tags are an independent option and do not require a HUD override:
 
 [code]
 [EN] Primary text
 [DE] Secondary text
 [/code]
 
-With appearance customization enabled, the generator derives a bilingual HUD from the user's installed hud.gfx. Main and Secondary lines can be styled independently for color, size and italic treatment, with common outline and shadow options.
+Appearance customization is also opt-in. Main and Secondary color, size and italic treatment, plus common outline and shadow, are independent options. Blank color/size fields and unchecked options leave that property under the game's existing presentation.
 
-Styled mode therefore needs to supply Libs/UI/hud.gfx. If another installed mod also replaces that HUD file in the selected Mods folder, KCD2 Dual Subtitles fails closed instead of silently overwriting or combining an unknown foreign HUD. Remove the conflict or use the non-styled tagged mode.
+The generator derives and supplies Libs/UI/hud.gfx only when at least one visual override actually requires the HUD path. If another installed mod also replaces that HUD file in the selected Mods folder, KCD2 Dual Subtitles fails closed instead of silently overwriting or combining an unknown foreign HUD. Plain subtitles and language-tags-only mode remain localization-only and do not introduce a HUD conflict.
 
 [b]Known limitations[/b]
 
