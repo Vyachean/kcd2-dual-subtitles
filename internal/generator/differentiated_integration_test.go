@@ -71,7 +71,7 @@ func TestGenerateWritesDifferentiatedLocalizationPatch(t *testing.T) {
 	t.Fatal("generated localization patch does not contain row different")
 }
 
-func TestGenerateDefaultsToAcceptedTaggedStyle(t *testing.T) {
+func TestGenerateDefaultsToPlainGameAppearance(t *testing.T) {
 	gameRoot := createGameRoot(t, true, true)
 	output := filepath.Join(t.TempDir(), "dual-subtitles.zip")
 
@@ -85,9 +85,39 @@ func TestGenerateDefaultsToAcceptedTaggedStyle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if result.SubtitleStyle != SubtitleStyleTagged {
-		t.Fatalf("SubtitleStyle = %q, want %q", result.SubtitleStyle, SubtitleStyleTagged)
+	if result.SubtitleStyle != SubtitleStylePlain {
+		t.Fatalf("SubtitleStyle = %q, want %q", result.SubtitleStyle, SubtitleStylePlain)
 	}
+
+	outer, err := zip.OpenReader(output)
+	if err != nil {
+		t.Fatalf("open generated archive: %v", err)
+	}
+	defer outer.Close()
+	pakData := readArchiveEntry(t, &outer.Reader, "kcd_dual_subtitles/Localization/Russian_xml.pak")
+	pak, err := zip.NewReader(bytes.NewReader(pakData), int64(len(pakData)))
+	if err != nil {
+		t.Fatalf("open generated localization PAK: %v", err)
+	}
+	patchData := readArchiveEntry(t, pak, modarchive.LocalizationPatchArchivePath)
+	rows, err := localization.ParseDialogueXML(patchData)
+	if err != nil {
+		t.Fatalf("parse generated localization patch: %v", err)
+	}
+	for _, row := range rows {
+		if row.ID != "different" {
+			continue
+		}
+		want := `Основной\nSecondary`
+		if row.Text != want {
+			t.Fatalf("plain bilingual text = %q, want %q", row.Text, want)
+		}
+		if strings.Contains(row.Text, "[RU]") || strings.Contains(row.Text, "[EN]") || strings.Contains(row.Text, "<font") || strings.Contains(row.Text, "<i>") {
+			t.Fatalf("plain bilingual text contains presentation markup: %q", row.Text)
+		}
+		return
+	}
+	t.Fatal("generated localization patch does not contain row different")
 }
 
 func TestGenerateRejectsUnsupportedSubtitleStyle(t *testing.T) {
