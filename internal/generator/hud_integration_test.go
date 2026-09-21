@@ -95,11 +95,11 @@ func TestGenerateHUDPrototypeDerivesAndPackagesHUD(t *testing.T) {
 	}
 }
 
-func TestGenerateDefaultTaggedPathNeverReadsHUD(t *testing.T) {
+func TestGenerateDefaultPlainPathNeverReadsHUD(t *testing.T) {
 	originalRead := readRetailHUD
 	defer func() { readRetailHUD = originalRead }()
 	readRetailHUD = func(string) ([]byte, error) {
-		return nil, errors.New("HUD must not be read for tagged generation")
+		return nil, errors.New("HUD must not be read for plain generation")
 	}
 
 	gameRoot := createGameRoot(t, true, true)
@@ -107,12 +107,12 @@ func TestGenerateDefaultTaggedPathNeverReadsHUD(t *testing.T) {
 		GameRoot:          gameRoot,
 		MainLanguage:      localization.Russian,
 		SecondaryLanguage: localization.English,
-		OutputPath:        filepath.Join(t.TempDir(), "tagged.zip"),
+		OutputPath:        filepath.Join(t.TempDir(), "plain.zip"),
 	})
 	if err != nil {
-		t.Fatalf("Generate(tagged) error = %v", err)
+		t.Fatalf("Generate(plain) error = %v", err)
 	}
 	if result.HUDOverride {
-		t.Fatal("default tagged generation unexpectedly reports HUD override")
+		t.Fatal("default plain generation unexpectedly reports HUD override")
 	}
 }
