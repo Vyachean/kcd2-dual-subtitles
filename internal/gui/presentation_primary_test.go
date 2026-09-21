@@ -21,9 +21,9 @@ func TestPresentationInputMapsOptionalPrimaryOverrides(t *testing.T) {
 	input.PrimarySize = " 30 "
 	input.PrimaryItalic = true
 
-	presentation, err := input.hudPresentation()
+	presentation, err := input.presentationConfig()
 	if err != nil {
-		t.Fatalf("hudPresentation() error = %v", err)
+		t.Fatalf("presentationConfig() error = %v", err)
 	}
 	if presentation.PrimaryColor != "#ABCDEF" || presentation.PrimarySize != 30 || !presentation.PrimaryItalic {
 		t.Fatalf("primary presentation = %+v", presentation)
@@ -36,9 +36,9 @@ func TestPresentationInputEmptyPrimarySizeKeepsVanillaSize(t *testing.T) {
 	input.PrimaryColor = "#FFFFFF"
 	input.PrimarySize = "   "
 
-	presentation, err := input.hudPresentation()
+	presentation, err := input.presentationConfig()
 	if err != nil {
-		t.Fatalf("hudPresentation() error = %v", err)
+		t.Fatalf("presentationConfig() error = %v", err)
 	}
 	if presentation.PrimarySize != 0 {
 		t.Fatalf("PrimarySize = %d, want vanilla sentinel 0", presentation.PrimarySize)
@@ -49,12 +49,12 @@ func TestPresentationInputRejectsInvalidPrimarySize(t *testing.T) {
 	input := defaultPresentationInput()
 	input.Styled = true
 	input.PrimarySize = "large"
-	if _, err := input.hudPresentation(); err == nil {
-		t.Fatal("hudPresentation() error = nil, want actionable primary size error")
+	if _, err := input.presentationConfig(); err == nil {
+		t.Fatal("presentationConfig() error = nil, want actionable primary size error")
 	}
 
 	input.PrimarySize = "11"
-	_, err := input.hudPresentation()
+	_, err := input.presentationConfig()
 	if !errors.Is(err, generator.ErrInvalidRequest) {
 		t.Fatalf("error = %v, want generator.ErrInvalidRequest", err)
 	}
