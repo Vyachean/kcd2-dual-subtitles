@@ -12,6 +12,7 @@ It reads localization and HUD data from the installed game, does not redistribut
 - ordinary bottom dialogue subtitles in both selected languages;
 - story and cutscene dialogue that uses the normal subtitle path;
 - overhead NPC subtitle bubbles;
+- preserves the game's subtitle appearance by default;
 - optional language tags;
 - optional per-line color, size and italic styling;
 - optional outline and shadow for readability;
@@ -78,16 +79,23 @@ The v0.3 retail test cycle was performed on **Kingdom Come: Deliverance II 1.5.6
 
 ## Subtitle styles and other HUD mods
 
-With appearance customization disabled, the tool uses a simple tagged bilingual format such as:
+With all presentation options left off, the tool preserves the game's existing subtitle appearance and only adds the Secondary line:
+
+```text
+Primary text
+Secondary text
+```
+
+Language tags are an independent option and do not require a HUD override:
 
 ```text
 [EN] Primary text
 [DE] Secondary text
 ```
 
-With appearance customization enabled, the generator derives a bilingual HUD from the user's installed `hud.gfx`. Main and Secondary lines can be styled independently for color, size and italic treatment, with common outline and shadow options.
+Appearance customization is also opt-in. Main and Secondary color, size and italic treatment, plus common outline and shadow, are independent options. Blank color/size fields and unchecked options leave that property under the game's existing presentation.
 
-Styled mode therefore needs to supply `Libs/UI/hud.gfx`. If another installed mod also replaces that HUD file in the selected Mods folder, KCD2 Dual Subtitles fails closed instead of silently overwriting or combining an unknown foreign HUD. Remove the conflict or use the non-styled tagged mode.
+The generator derives and supplies `Libs/UI/hud.gfx` only when at least one visual override actually requires the HUD path. If another installed mod also replaces that HUD file in the selected Mods folder, KCD2 Dual Subtitles fails closed instead of silently overwriting or combining an unknown foreign HUD. Plain subtitles and language-tags-only mode remain localization-only and do not introduce a HUD conflict.
 
 ## Known limitations
 
@@ -130,7 +138,7 @@ Run or double-click:
 kcd2-dual-subtitles.exe
 ```
 
-The native Win32 application provides best-effort KCD2 autodetection, Game-folder `Browse...`, a visible **Mods folder** with **Change... / Reset**, Main and Secondary selectors, optional styled presentation, Generate / Regenerate, Uninstall, operation status and native error messages.
+The native Win32 application provides best-effort KCD2 autodetection, Game-folder `Browse...`, a visible **Mods folder** with **Change... / Reset**, Main and Secondary selectors, independently optional language tags and appearance controls, Generate / Regenerate, Uninstall, operation status and native error messages.
 
 The Mods-folder field is read-only so displayed state cannot drift from backend state. **Change...** validates and selects an existing custom directory; **Reset** restores the layout-aware automatic location. Source discovery, installation, status, Regenerate, Uninstall, HUD-conflict scanning and `mod_order.txt` all use this one selected Mods folder. Selecting a different Game folder clears a previous custom Mods-folder override.
 
@@ -140,7 +148,7 @@ Generate/Regenerate runs outside the Win32 UI thread. The window remains respons
 
 ### Styled subtitle details
 
-Leaving primary color or size blank preserves the game's default primary property.
+Presentation is opt-in. Leaving either line's color or size blank preserves that game-controlled property; italic, outline and shadow are applied only when their checkboxes are enabled. Language tags are independent and do not by themselves enable the HUD path.
 
 The derived HUD path is generated from the user's installed `hud.gfx`; the project does not ship a prebuilt proprietary HUD file.
 
@@ -269,7 +277,7 @@ Example:
 kcd2-dual-subtitles.exe generate --game "C:\path\to\KCD2-root" --main English --secondary German
 ```
 
-Use the default tagged format:
+Add language tags without changing HUD styling:
 
 ```text
 kcd2-dual-subtitles.exe generate --game "C:\path\to\KCD2-root" --main English --secondary German --subtitle-style tagged
