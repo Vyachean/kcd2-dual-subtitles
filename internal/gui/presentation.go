@@ -22,30 +22,22 @@ type presentationInput struct {
 }
 
 func defaultPresentationInput() presentationInput {
-	defaults := generator.DefaultHUDPresentationConfig()
-	return presentationInput{
-		Styled:           false,
-		ShowLanguageTags: defaults.ShowLanguageTags,
-		PrimaryColor:     defaults.PrimaryColor,
-		PrimarySize:      "",
-		PrimaryItalic:    defaults.PrimaryItalic,
-		SecondaryColor:   defaults.SecondaryColor,
-		SecondarySize:    strconv.Itoa(defaults.SecondarySize),
-		SecondaryItalic:  defaults.SecondaryItalic,
-		Outline:          defaults.Outline,
-		Shadow:           defaults.Shadow,
-	}
+	return presentationInput{}
 }
 
-func (input presentationInput) hudPresentation() (*generator.HUDPresentationConfig, error) {
+func (input presentationInput) presentationConfig() (*generator.HUDPresentationConfig, error) {
+	// Language tags are a localization-only option and do not require the HUD
+	// customization path.
 	if !input.Styled {
-		return nil, nil
+		if !input.ShowLanguageTags {
+			return nil, nil
+		}
+		return &generator.HUDPresentationConfig{ShowLanguageTags: true}, nil
 	}
 
-	secondarySizeText := strings.TrimSpace(input.SecondarySize)
-	secondarySize, err := strconv.Atoi(secondarySizeText)
+	secondarySize, err := parseOptionalSecondarySize(input.SecondarySize)
 	if err != nil {
-		return nil, fmt.Errorf("secondary subtitle size must be a whole number between %d and %d", generator.MinHUDSecondarySize, generator.MaxHUDSecondarySize)
+		return nil, err
 	}
 
 	primarySize, err := parseOptionalPrimarySize(input.PrimarySize)
@@ -71,13 +63,21 @@ func (input presentationInput) hudPresentation() (*generator.HUDPresentationConf
 }
 
 func parseOptionalPrimarySize(value string) (int, error) {
+	return parseOptionalSize(value, "primary", generator.MinHUDPrimarySize, generator.MaxHUDPrimarySize)
+}
+
+func parseOptionalSecondarySize(value string) (int, error) {
+	return parseOptionalSize(value, "secondary", generator.MinHUDSecondarySize, generator.MaxHUDSecondarySize)
+}
+
+func parseOptionalSize(value, line string, minSize, maxSize int) (int, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return 0, nil
 	}
 	size, err := strconv.Atoi(value)
 	if err != nil {
-		return 0, fmt.Errorf("primary subtitle size must be empty for vanilla size or a whole number between %d and %d", generator.MinHUDPrimarySize, generator.MaxHUDPrimarySize)
+		return 0, fmt.Errorf("%s subtitle size must be empty for vanilla size or a whole number between %d and %d", line, minSize, maxSize)
 	}
 	return size, nil
 }

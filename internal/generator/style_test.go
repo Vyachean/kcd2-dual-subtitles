@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestNormalizeHUDPresentationUsesLiveProvenDefaults(t *testing.T) {
+func TestNormalizeHUDPresentationUsesLiveProvenExplicitHUDDefaults(t *testing.T) {
 	got, err := normalizeHUDPresentation(SubtitleStyleHUD, nil)
 	if err != nil {
 		t.Fatalf("normalizeHUDPresentation() error = %v", err)
@@ -15,7 +15,7 @@ func TestNormalizeHUDPresentationUsesLiveProvenDefaults(t *testing.T) {
 		t.Fatalf("presentation = %+v, want %+v", got, want)
 	}
 	if !got.SecondaryItalic || !got.ShowLanguageTags {
-		t.Fatalf("default booleans = %+v, want italic and language tags enabled", got)
+		t.Fatalf("explicit HUD defaults = %+v, want legacy italic and language tags enabled", got)
 	}
 }
 
@@ -32,6 +32,50 @@ func TestNormalizeHUDPresentationAcceptsExplicitPresentation(t *testing.T) {
 	}
 	if got.SecondaryColor != "#a1B2c3" || got.SecondarySize != MinHUDSecondarySize || got.SecondaryItalic || got.ShowLanguageTags {
 		t.Fatalf("presentation = %+v, want normalized explicit values", got)
+	}
+}
+
+func TestNormalizeHUDPresentationAcceptsVanillaSecondaryProperties(t *testing.T) {
+	configured := HUDPresentationConfig{}
+	got, err := NormalizeHUDPresentationConfig(configured)
+	if err != nil {
+		t.Fatalf("NormalizeHUDPresentationConfig() error = %v", err)
+	}
+	if got.SecondaryColor != "" || got.SecondarySize != 0 || got.SecondaryItalic {
+		t.Fatalf("presentation = %+v, want optional secondary properties left vanilla", got)
+	}
+}
+
+func TestPresentationSubtitleStyleUsesLeastInvasivePath(t *testing.T) {
+	tests := []struct {
+		name   string
+		config HUDPresentationConfig
+		want   SubtitleStyle
+	}{
+		{name: "no options", config: HUDPresentationConfig{}, want: SubtitleStylePlain},
+		{name: "tags only", config: HUDPresentationConfig{ShowLanguageTags: true}, want: SubtitleStyleTagged},
+		{name: "secondary color", config: HUDPresentationConfig{SecondaryColor: "#123456"}, want: SubtitleStyleHUD},
+		{name: "secondary size", config: HUDPresentationConfig{SecondarySize: 18}, want: SubtitleStyleHUD},
+		{name: "secondary italic", config: HUDPresentationConfig{SecondaryItalic: true}, want: SubtitleStyleHUD},
+		{name: "primary italic", config: HUDPresentationConfig{PrimaryItalic: true}, want: SubtitleStyleHUD},
+		{name: "outline", config: HUDPresentationConfig{Outline: true}, want: SubtitleStyleHUD},
+		{name: "shadow", config: HUDPresentationConfig{Shadow: true}, want: SubtitleStyleHUD},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := PresentationSubtitleStyle(tt.config); got != tt.want {
+				t.Fatalf("PresentationSubtitleStyle(%+v) = %q, want %q", tt.config, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseSubtitleStyleDefaultsToPlain(t *testing.T) {
+	for _, value := range []string{"", "plain", "PlAiN"} {
+		got, ok := ParseSubtitleStyle(value)
+		if !ok || got != SubtitleStylePlain {
+			t.Fatalf("ParseSubtitleStyle(%q) = %q, %v; want %q, true", value, got, ok, SubtitleStylePlain)
+		}
 	}
 }
 

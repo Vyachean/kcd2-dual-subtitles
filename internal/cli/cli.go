@@ -21,7 +21,7 @@ const (
 
 	defaultMainLanguage      = "English"
 	defaultSecondaryLanguage = "Italian"
-	defaultSubtitleStyle     = "tagged"
+	defaultSubtitleStyle     = "plain"
 )
 
 type generateFunc func(generator.Request) (generator.Result, error)
@@ -59,7 +59,7 @@ func runGenerate(args []string, stdout, stderr io.Writer, version string, genera
 	gameRoot := flags.String("game", "", "KCD2 game root containing Localization")
 	mainName := flags.String("main", defaultMainLanguage, "main subtitle language")
 	secondaryName := flags.String("secondary", defaultSecondaryLanguage, "secondary subtitle language")
-	subtitleStyleName := flags.String("subtitle-style", defaultSubtitleStyle, "subtitle style: tagged or hud; differentiated is retained for legacy diagnostics")
+	subtitleStyleName := flags.String("subtitle-style", defaultSubtitleStyle, "subtitle style: plain, tagged, or hud; differentiated is retained for legacy diagnostics")
 	outputPath := flags.String("output", "", "write a portable mod ZIP instead of installing it")
 	canaryID := flags.String("canary-id", "", "acceptance-only localization row ID to prefix with [KCD2DS TEST]")
 
@@ -96,7 +96,7 @@ func runGenerate(args []string, stdout, stderr io.Writer, version string, genera
 	}
 	subtitleStyle, ok := generator.ParseSubtitleStyle(*subtitleStyleName)
 	if !ok {
-		fmt.Fprintf(stderr, "error: unsupported subtitle style %q; use tagged, hud, or legacy differentiated\n", *subtitleStyleName)
+		fmt.Fprintf(stderr, "error: unsupported subtitle style %q; use plain, tagged, hud, or legacy differentiated\n", *subtitleStyleName)
 		return ExitUsage
 	}
 
@@ -226,8 +226,8 @@ func normalizeInteractivePath(value string) string {
 
 func printUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style tagged|hud] [--canary-id <row-id>]\n", AppName)
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style tagged|hud] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style plain|tagged|hud] [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style plain|tagged|hud] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "  %s --help\n", AppName)
 	fmt.Fprintf(output, "  %s --version\n", AppName)
 	fmt.Fprintf(output, "  %s              # native GUI on Windows; interactive fallback elsewhere\n", AppName)
@@ -235,11 +235,11 @@ func printUsage(output io.Writer) {
 
 func printGenerateUsage(output io.Writer) {
 	fmt.Fprintf(output, "Usage:\n")
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style tagged|hud] [--canary-id <row-id>]\n", AppName)
-	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style tagged|hud] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style plain|tagged|hud] [--canary-id <row-id>]\n", AppName)
+	fmt.Fprintf(output, "  %s generate --game <KCD2-root> [--main English] [--secondary Italian] [--subtitle-style plain|tagged|hud] --output <mod.zip> [--canary-id <row-id>]\n", AppName)
 	fmt.Fprintf(output, "\nWithout --output, the Windows build resolves the install target from --game: standard PC layouts use <game-root>\\Mods; GDK layouts use Documents\\kingdomcome_mods.\n")
 	fmt.Fprintf(output, "Active localization/correction mods in that resolved Mods root are composed into the selected Main/Secondary sources; an existing mod_order.txt controls their whitelist/order.\n")
-	fmt.Fprintf(output, "--subtitle-style defaults to tagged. hud derives the styled HUD override from the installed game; differentiated remains accepted only for legacy diagnostics.\n")
+	fmt.Fprintf(output, "--subtitle-style defaults to plain, which keeps the game's subtitle appearance and adds no language tags. tagged adds tags without a HUD override; hud derives the styled HUD override from the installed game. differentiated remains accepted only for legacy diagnostics.\n")
 	fmt.Fprintf(output, "--canary-id is acceptance-only and visibly prefixes that localization row with [KCD2DS TEST].\n")
 	fmt.Fprintf(output, "Supported languages: %s\n", supportedLanguageNames())
 }

@@ -30,9 +30,9 @@ var (
 // override for both installed-mod source discovery and automatic publication;
 // otherwise the layout-aware resolver selects the Mods root from GameRoot.
 // CanaryID enables an explicit acceptance-only marker on one existing
-// localization row. An empty SubtitleStyle keeps the accepted tagged format for
-// backward compatibility. HUDPresentation is used only with SubtitleStyleHUD;
-// nil preserves the live-proven rc.10 defaults.
+// localization row. An empty SubtitleStyle preserves the game's subtitle
+// appearance with plain bilingual lines. HUDPresentation is used only with
+// SubtitleStyleHUD; nil preserves the live-proven rc.10 HUD defaults.
 type Request struct {
 	GameRoot          string
 	ModsRoot          string
@@ -227,6 +227,8 @@ func contributionNames(contributions []localizationsource.Contribution) []string
 
 func mergeRowsForStyle(style SubtitleStyle, presentation HUDPresentationConfig, mainRows, secondaryRows []localization.DialogueRow, mainTag, secondaryTag string) ([]localization.DialogueRow, localization.MergeStats, error) {
 	switch style {
+	case SubtitleStylePlain:
+		return localization.MergeDialogueRows(mainRows, secondaryRows)
 	case SubtitleStyleTagged:
 		return localization.MergeDialogueRowsTagged(mainRows, secondaryRows, mainTag, secondaryTag)
 	case SubtitleStyleDifferentiated:

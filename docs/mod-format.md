@@ -106,9 +106,17 @@ Rows that remain unchanged are omitted. The merge contract preserves:
 
 Normal output contains no private/game-specific diagnostics.
 
-## Tagged bilingual format
+## Plain and tagged bilingual formats
 
-The non-styled path emits compact labels separated by the literal game-facing `\n` sequence, for example:
+The default localization-only path preserves the game's subtitle presentation and only combines the two texts with the literal game-facing `\n` sequence:
+
+```text
+Primary text\nSecondary text
+```
+
+No language tags or HTML presentation markup are added unless explicitly requested.
+
+Language tags are an independent localization-only option:
 
 ```text
 [EN] Primary text\n[DE] Secondary text
@@ -116,7 +124,7 @@ The non-styled path emits compact labels separated by the literal game-facing `\
 
 The literal two-character `\n` separator is intentional. Retail KCD2 acceptance confirmed that it renders as a line break in dialogue subtitles.
 
-Identical/single-language fallback rows remain untagged.
+Identical/single-language fallback rows remain untagged. Tags alone never require a derived HUD.
 
 ## Styled bilingual format
 
@@ -140,7 +148,9 @@ Presentation options can alter:
 - secondary italic;
 - language tags.
 
-Outline and shadow are not encoded as HTML. They are optional whole-TextField properties applied by the derived HUD transformation.
+Every presentation option is optional. Blank primary/secondary color and zero/blank size preserve the corresponding game-controlled property; italic, outline and shadow are applied only when explicitly enabled. Language tags do not require styled mode.
+
+Outline and shadow are not encoded as HTML. They are optional whole-TextField properties applied by the derived HUD transformation. The application selects the derived-HUD path only when at least one actual visual override requires it.
 
 ## Dialogue-row escaping
 

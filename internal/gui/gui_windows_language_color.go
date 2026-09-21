@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/Vyachean/kcd2-dual-subtitles/internal/generator"
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/localization"
 )
 
@@ -109,7 +110,8 @@ func (w *nativeWindow) refreshLanguageControls(gameRoot string) error {
 }
 
 func (w *nativeWindow) chooseSecondaryColor() {
-	w.chooseColorForEdit(w.colorEdit, defaultPresentationInput().SecondaryColor)
+	// Blank means vanilla styling; this fallback only positions the picker.
+	w.chooseColorForEdit(w.colorEdit, generator.DefaultHUDSecondaryColor)
 }
 
 func (w *nativeWindow) choosePrimaryColor() {

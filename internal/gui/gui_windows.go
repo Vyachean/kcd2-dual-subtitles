@@ -425,7 +425,7 @@ func (w *nativeWindow) createControls(hwnd uintptr) error {
 	}
 	w.italicCheckbox = italic
 	w.setChecked(w.italicCheckbox, w.presentation.SecondaryItalic)
-	if _, err := w.createControl("STATIC", "The secondary line uses explicit presentation settings.", wsChild|wsVisible, 400, 430, 285, 44, 0); err != nil {
+	if _, err := w.createControl("STATIC", "Leave color and size blank to keep the game's default secondary style.", wsChild|wsVisible, 400, 430, 285, 44, 0); err != nil {
 		return err
 	}
 	w.updatePresentationControls()
@@ -617,7 +617,7 @@ func (w *nativeWindow) generateAndInstall() {
 	}
 
 	input := w.currentPresentationInput()
-	presentation, err := input.hudPresentation()
+	presentation, err := input.presentationConfig()
 	if err != nil {
 		w.setStatus("Fix the subtitle presentation settings before generating.")
 		showMessage(w.hwnd, "Subtitle presentation", err.Error(), mbOK|mbIconError)
@@ -699,8 +699,10 @@ func (w *nativeWindow) setBusy(busy bool) {
 }
 
 func (w *nativeWindow) updatePresentationControls() {
+	// Language tags are independent from HUD appearance customization.
+	w.enable(w.tagsCheckbox, !w.busy)
+
 	enabled := !w.busy && w.checked(w.styledCheckbox)
-	w.enable(w.tagsCheckbox, enabled)
 	w.enable(w.outlineCheckbox, enabled)
 	w.enable(w.shadowCheckbox, enabled)
 	w.enable(w.primaryColorEdit, enabled)

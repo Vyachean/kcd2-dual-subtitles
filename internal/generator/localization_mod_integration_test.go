@@ -55,7 +55,7 @@ func TestGenerateUsesActiveLocalizationModAsMainSource(t *testing.T) {
 	if corrected == nil {
 		t.Fatal("generated patch does not contain different row")
 	}
-	if want := "[RU] Исправленный\\n[EN] Secondary"; corrected.Text != want {
+	if want := "Исправленный\\nSecondary"; corrected.Text != want {
 		t.Fatalf("generated text = %q, want %q", corrected.Text, want)
 	}
 }

@@ -44,12 +44,13 @@ func (w *nativeWindow) startGeneration(normalized string, main, secondary locali
 		return
 	}
 
+	styled := presentation != nil && generator.PresentationRequiresHUD(*presentation)
 	context := generationLogContext{
 		GameRoot:  normalized,
 		ModsRoot:  w.text(w.modsEdit),
 		Main:      main,
 		Secondary: secondary,
-		Styled:    presentation != nil,
+		Styled:    styled,
 	}
 	if err := w.ensureGenerationLogControls(); err != nil {
 		w.setStatus("Generation log could not be shown: " + err.Error())

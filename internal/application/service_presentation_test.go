@@ -40,7 +40,7 @@ func TestGenerateAndInstallWithPresentationSelectsHUDAndNormalizesConfig(t *test
 	}
 }
 
-func TestGenerateAndInstallPreservesLegacyTaggedRequest(t *testing.T) {
+func TestGenerateAndInstallDefaultsToPlainRequest(t *testing.T) {
 	parent := filepath.Join(t.TempDir(), "Kingdom Come")
 	content := filepath.Join(parent, "Content")
 	createApplicationGameLayout(t, content)
@@ -54,8 +54,48 @@ func TestGenerateAndInstallPreservesLegacyTaggedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateAndInstall() error = %v", err)
 	}
-	if got.SubtitleStyle != "" || got.HUDPresentation != nil {
-		t.Fatalf("legacy request = %+v, want default tagged style without HUD presentation", got)
+	if got.SubtitleStyle != generator.SubtitleStylePlain || got.HUDPresentation != nil {
+		t.Fatalf("request = %+v, want plain style without HUD presentation", got)
+	}
+}
+
+func TestGenerateAndInstallWithPresentationUsesTaggedPathForTagsOnly(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "Kingdom Come")
+	content := filepath.Join(parent, "Content")
+	createApplicationGameLayout(t, content)
+
+	var got generator.Request
+	service := Service{generate: func(request generator.Request) (generator.Result, error) {
+		got = request
+		return generator.Result{}, nil
+	}}
+	presentation := generator.HUDPresentationConfig{ShowLanguageTags: true}
+	_, err := service.GenerateAndInstallWithPresentation(parent, localization.Russian, localization.English, &presentation)
+	if err != nil {
+		t.Fatalf("GenerateAndInstallWithPresentation() error = %v", err)
+	}
+	if got.SubtitleStyle != generator.SubtitleStyleTagged || got.HUDPresentation != nil {
+		t.Fatalf("request = %+v, want tagged localization-only path", got)
+	}
+}
+
+func TestGenerateAndInstallWithPresentationKeepsBlankOptionsPlain(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "Kingdom Come")
+	content := filepath.Join(parent, "Content")
+	createApplicationGameLayout(t, content)
+
+	var got generator.Request
+	service := Service{generate: func(request generator.Request) (generator.Result, error) {
+		got = request
+		return generator.Result{}, nil
+	}}
+	presentation := generator.HUDPresentationConfig{}
+	_, err := service.GenerateAndInstallWithPresentation(parent, localization.Russian, localization.English, &presentation)
+	if err != nil {
+		t.Fatalf("GenerateAndInstallWithPresentation() error = %v", err)
+	}
+	if got.SubtitleStyle != generator.SubtitleStylePlain || got.HUDPresentation != nil {
+		t.Fatalf("request = %+v, want plain path without HUD override", got)
 	}
 }
 

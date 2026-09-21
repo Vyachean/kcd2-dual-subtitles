@@ -58,7 +58,7 @@ func TestGenerateComposesIndependentMainAndSecondaryLocalizationMods(t *testing.
 		if row.ID != "different" {
 			continue
 		}
-		want := "[RU] Исправленный русский\\n[EN] Corrected English"
+		want := "Исправленный русский\\nCorrected English"
 		if row.Text != want {
 			t.Fatalf("generated text = %q, want %q", row.Text, want)
 		}

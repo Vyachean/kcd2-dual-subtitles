@@ -42,7 +42,7 @@ func TestGenerateUsesExplicitModsRootForLocalizationSources(t *testing.T) {
 	rows := readGeneratedPatchRows(t, output, "Russian_xml.pak")
 	for _, row := range rows {
 		if row.ID == "different" {
-			if want := "[RU] Исправлено из custom Mods\\n[EN] Secondary"; row.Text != want {
+			if want := "Исправлено из custom Mods\\nSecondary"; row.Text != want {
 				t.Fatalf("generated text = %q, want %q", row.Text, want)
 			}
 			return

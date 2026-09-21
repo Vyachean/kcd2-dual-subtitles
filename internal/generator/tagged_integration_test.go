@@ -43,6 +43,7 @@ func TestGenerateWritesTaggedLocalizationPatchInSelectedLanguageOrder(t *testing
 				GameRoot:          gameRoot,
 				MainLanguage:      tt.main,
 				SecondaryLanguage: tt.secondary,
+				SubtitleStyle:     SubtitleStyleTagged,
 				OutputPath:        output,
 				Version:           "v0.1.0-test",
 			})

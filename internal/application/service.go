@@ -150,16 +150,17 @@ func (s Service) InspectInstallationForGameRoot(gameRoot string) (modinstall.Sta
 	return s.InspectInstallation()
 }
 
-// GenerateAndInstall preserves the existing non-HUD tagged GUI/application
-// behavior. Styled generation uses GenerateAndInstallWithPresentation.
+// GenerateAndInstall uses the least invasive default: plain bilingual
+// subtitles with the game's existing appearance and no language tags.
 func (s Service) GenerateAndInstall(gameRoot string, main, secondary localization.Language) (generator.Result, error) {
 	return s.GenerateAndInstallWithPresentation(gameRoot, main, secondary, nil)
 }
 
 // GenerateAndInstallWithPresentation validates the selected game root,
-// explicit language choices and optional HUD presentation, then performs the
-// existing safe generator/install operation. A nil presentation preserves the
-// legacy tagged path; a non-nil presentation explicitly selects HUD mode.
+// explicit language choices and optional presentation settings, then performs
+// the existing safe generator/install operation. The least invasive subtitle
+// path is selected automatically: plain for no options, tagged for language
+// tags only, and HUD only when an actual visual override is requested.
 func (s Service) GenerateAndInstallWithPresentation(gameRoot string, main, secondary localization.Language, presentation *generator.HUDPresentationConfig) (generator.Result, error) {
 	if main == secondary {
 		return generator.Result{}, ErrSameLanguage
@@ -188,11 +189,14 @@ func (s Service) GenerateAndInstallWithPresentation(gameRoot string, main, secon
 		ModsRoot:          modsRootOverride,
 		MainLanguage:      main,
 		SecondaryLanguage: secondary,
+		SubtitleStyle:     generator.SubtitleStylePlain,
 		Version:           version,
 	}
 	if normalizedPresentation != nil {
-		request.SubtitleStyle = generator.SubtitleStyleHUD
-		request.HUDPresentation = normalizedPresentation
+		request.SubtitleStyle = generator.PresentationSubtitleStyle(*normalizedPresentation)
+		if request.SubtitleStyle == generator.SubtitleStyleHUD {
+			request.HUDPresentation = normalizedPresentation
+		}
 	}
 	result, err := s.generate(request)
 	if err != nil {
