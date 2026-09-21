@@ -17,6 +17,7 @@ The compatibility contract is **store-neutral**: Steam, GOG, Epic Games Store, X
 7. Treat live in-game behavior as a separate acceptance gate when CI cannot prove it.
 8. Never make store/launcher identity a requirement for generation; validate the KCD2 file structure instead.
 9. The selected game installation is the source of truth for install/status/uninstall; all of those operations must resolve and use one identical mod root.
+10. Subtitle presentation is opt-in: with no presentation options selected, preserve the game's appearance; every tag/style/readability option must remain independently optional, and a derived HUD must be introduced only when an explicit visual override requires it.
 
 ## v0.1 — localization baseline
 
@@ -81,7 +82,7 @@ The stable v0.3 contract is intentionally a **generation-time fixed pair**, not 
 - [x] native Windows color picker;
 - [x] common outline on/off;
 - [x] common shadow on/off;
-- [x] preserve the proven legacy tagged path when appearance customization is disabled;
+- [x] plain game appearance is the default; language tags are independent, every visual presentation property is optional, and the HUD path is used only for explicit visual overrides;
 - [x] foreign HUD conflict detection.
 
 ### Windows installation robustness
