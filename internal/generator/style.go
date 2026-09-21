@@ -29,9 +29,9 @@ const (
 )
 
 // HUDPresentationConfig controls generation-time presentation for the proven
-// direct-HTML HUD path. Empty PrimaryColor and zero PrimarySize mean that the
-// corresponding primary-line property remains controlled by the retail game.
-// Outline and Shadow are common whole-TextField effects and are off by default.
+// direct-HTML HUD path. Empty color and zero size values leave the corresponding
+// line properties controlled by the retail game. Italic, Outline and Shadow are
+// applied only when explicitly enabled.
 type HUDPresentationConfig struct {
 	PrimaryColor     string
 	PrimarySize      int
