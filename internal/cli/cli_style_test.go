@@ -66,7 +66,7 @@ func TestRunGeneratePassesHUDSubtitleStyle(t *testing.T) {
 	}
 }
 
-func TestRunGenerateDefaultsToTaggedSubtitleStyle(t *testing.T) {
+func TestRunGenerateDefaultsToPlainSubtitleStyle(t *testing.T) {
 	var gotRequest generator.Request
 	fakeGenerate := func(request generator.Request) (generator.Result, error) {
 		gotRequest = request
@@ -84,11 +84,35 @@ func TestRunGenerateDefaultsToTaggedSubtitleStyle(t *testing.T) {
 	if exitCode != ExitSuccess {
 		t.Fatalf("exit code = %d, want %d; stderr=%q", exitCode, ExitSuccess, stderr.String())
 	}
-	if gotRequest.SubtitleStyle != generator.SubtitleStyleTagged {
-		t.Fatalf("SubtitleStyle = %q, want %q", gotRequest.SubtitleStyle, generator.SubtitleStyleTagged)
+	if gotRequest.SubtitleStyle != generator.SubtitleStylePlain {
+		t.Fatalf("SubtitleStyle = %q, want %q", gotRequest.SubtitleStyle, generator.SubtitleStylePlain)
 	}
 	if strings.Contains(stdout.String(), "subtitle style") || strings.Contains(stdout.String(), "HUD override") {
-		t.Fatalf("default tagged mode changed normal CLI output: %q", stdout.String())
+		t.Fatalf("default plain mode changed normal CLI output: %q", stdout.String())
+	}
+}
+
+func TestRunGeneratePassesTaggedSubtitleStyle(t *testing.T) {
+	var gotRequest generator.Request
+	fakeGenerate := func(request generator.Request) (generator.Result, error) {
+		gotRequest = request
+		return generator.Result{
+			InstallPath:   `C:\\Documents\\kingdomcome_mods\\kcd_dual_subtitles`,
+			SubtitleStyle: request.SubtitleStyle,
+		}, nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	exitCode := run([]string{
+		"generate",
+		"--game", "somewhere",
+		"--subtitle-style", "tagged",
+	}, strings.NewReader(""), &stdout, &stderr, "dev", fakeGenerate)
+	if exitCode != ExitSuccess {
+		t.Fatalf("exit code = %d, want %d; stderr=%q", exitCode, ExitSuccess, stderr.String())
+	}
+	if gotRequest.SubtitleStyle != generator.SubtitleStyleTagged {
+		t.Fatalf("SubtitleStyle = %q, want %q", gotRequest.SubtitleStyle, generator.SubtitleStyleTagged)
 	}
 }
 
