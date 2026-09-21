@@ -227,9 +227,9 @@ kcd_dual_subtitles\
         └── Libs/UI/hud.gfx
 ```
 
-The generated localization PAKs contain only the project's patch resource and changed dialogue rows. The generated Data PAK contains a deterministic transformation of the user's installed retail HUD when styled mode is enabled.
+The generated localization PAKs contain only the project's patch resource and changed dialogue rows. The generated Data PAK contains a deterministic transformation of the user's installed retail HUD only when at least one visual override requires HUD mode.
 
-Before success is reported, the tool verifies generated portable ZIP contents, staged installation contents and the final published mod against the exact deterministic files requested for that generation. Styled mode requires the expected derived HUD Data PAK; localization-only mode rejects an unexpected HUD payload.
+Before success is reported, the tool verifies generated portable ZIP contents, staged installation contents and the final published mod against the exact deterministic files requested for that generation. HUD mode requires the expected derived HUD Data PAK; localization-only plain/tagged modes reject an unexpected HUD payload.
 
 The original KCD2 files are never overwritten.
 
