@@ -121,7 +121,7 @@ func TestNormalizeHUDPresentationRejectsInvalidOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configured := valid
 			if tt.edit != nil {
-				t.edit(&configured)
+				tt.edit(&configured)
 			}
 			_, err := normalizeHUDPresentation(tt.style, &configured)
 			if !errors.Is(err, ErrInvalidRequest) {
