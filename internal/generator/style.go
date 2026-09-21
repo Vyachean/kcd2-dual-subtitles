@@ -7,13 +7,15 @@ import (
 	"github.com/Vyachean/kcd2-dual-subtitles/internal/subtitlepayload"
 )
 
-// SubtitleStyle controls the generated subtitle presentation contract. Tagged
-// remains the accepted default. Differentiated is the failed localization-only
-// Stage A experiment retained for reproducibility; HUD is the explicit direct-
-// HUD Stage C1 prototype.
+// SubtitleStyle controls the generated subtitle presentation contract. Plain
+// preserves the game's subtitle appearance and is the default. Tagged adds only
+// language tags. Differentiated is the failed localization-only Stage A
+// experiment retained for reproducibility; HUD is used only when explicit
+// presentation overrides require a derived HUD.
 type SubtitleStyle string
 
 const (
+	SubtitleStylePlain          SubtitleStyle = "plain"
 	SubtitleStyleTagged         SubtitleStyle = "tagged"
 	SubtitleStyleDifferentiated SubtitleStyle = "differentiated"
 	SubtitleStyleHUD            SubtitleStyle = "hud"
@@ -60,10 +62,39 @@ func NormalizeHUDPresentationConfig(config HUDPresentationConfig) (HUDPresentati
 	return normalizeHUDPresentation(SubtitleStyleHUD, &config)
 }
 
+// PresentationRequiresHUD reports whether any explicit option needs the
+// derived-HUD path. Language tags are deliberately excluded because they can be
+// produced by the localization-only tagged format.
+func PresentationRequiresHUD(config HUDPresentationConfig) bool {
+	return strings.TrimSpace(config.PrimaryColor) != "" ||
+		config.PrimarySize != 0 ||
+		config.PrimaryItalic ||
+		strings.TrimSpace(config.SecondaryColor) != "" ||
+		config.SecondarySize != 0 ||
+		config.SecondaryItalic ||
+		config.Outline ||
+		config.Shadow
+}
+
+// PresentationSubtitleStyle chooses the least invasive format required by the
+// requested options. No options means plain game styling; tags alone stay on
+// the localization-only path; any visual override uses the derived HUD.
+func PresentationSubtitleStyle(config HUDPresentationConfig) SubtitleStyle {
+	if PresentationRequiresHUD(config) {
+		return SubtitleStyleHUD
+	}
+	if config.ShowLanguageTags {
+		return SubtitleStyleTagged
+	}
+	return SubtitleStylePlain
+}
+
 // ParseSubtitleStyle resolves a user-facing style name case-insensitively.
 func ParseSubtitleStyle(value string) (SubtitleStyle, bool) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", string(SubtitleStyleTagged):
+	case "", string(SubtitleStylePlain):
+		return SubtitleStylePlain, true
+	case string(SubtitleStyleTagged):
 		return SubtitleStyleTagged, true
 	case string(SubtitleStyleDifferentiated):
 		return SubtitleStyleDifferentiated, true
@@ -104,11 +135,11 @@ func normalizeHUDPresentation(style SubtitleStyle, configured *HUDPresentationCo
 	}
 
 	presentation.SecondaryColor = strings.TrimSpace(presentation.SecondaryColor)
-	if !validHUDColor(presentation.SecondaryColor) {
-		return HUDPresentationConfig{}, fmt.Errorf("%w: secondary color must use #RRGGBB format", ErrInvalidRequest)
+	if presentation.SecondaryColor != "" && !validHUDColor(presentation.SecondaryColor) {
+		return HUDPresentationConfig{}, fmt.Errorf("%w: secondary color must be empty or use #RRGGBB format", ErrInvalidRequest)
 	}
-	if presentation.SecondarySize < MinHUDSecondarySize || presentation.SecondarySize > MaxHUDSecondarySize {
-		return HUDPresentationConfig{}, fmt.Errorf("%w: secondary size must be between %d and %d", ErrInvalidRequest, MinHUDSecondarySize, MaxHUDSecondarySize)
+	if presentation.SecondarySize != 0 && (presentation.SecondarySize < MinHUDSecondarySize || presentation.SecondarySize > MaxHUDSecondarySize) {
+		return HUDPresentationConfig{}, fmt.Errorf("%w: secondary size must be 0 (vanilla) or between %d and %d", ErrInvalidRequest, MinHUDSecondarySize, MaxHUDSecondarySize)
 	}
 	return presentation, nil
 }
