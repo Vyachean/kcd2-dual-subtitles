@@ -15,9 +15,9 @@ func TestPresentationInputMapsReadabilityFlags(t *testing.T) {
 	input.Outline = true
 	input.Shadow = true
 
-	presentation, err := input.hudPresentation()
+	presentation, err := input.presentationConfig()
 	if err != nil {
-		t.Fatalf("hudPresentation() error = %v", err)
+		t.Fatalf("presentationConfig() error = %v", err)
 	}
 	if presentation == nil || !presentation.Outline || !presentation.Shadow {
 		t.Fatalf("presentation = %+v, want outline+shadow", presentation)
@@ -29,11 +29,11 @@ func TestPresentationInputIgnoresReadabilityWhenStyledModeIsOff(t *testing.T) {
 	input.Outline = true
 	input.Shadow = true
 
-	presentation, err := input.hudPresentation()
+	presentation, err := input.presentationConfig()
 	if err != nil {
-		t.Fatalf("hudPresentation() error = %v", err)
+		t.Fatalf("presentationConfig() error = %v", err)
 	}
 	if presentation != nil {
-		t.Fatalf("presentation = %+v, want nil tagged path", presentation)
+		t.Fatalf("presentation = %+v, want nil plain path", presentation)
 	}
 }
